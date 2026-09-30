@@ -1,0 +1,292 @@
+import Papa from "papaparse";
+import readXlsxFile from "read-excel-file/universal";
+import type { DraftQuestion } from "@/lib/schemas/exam";
+import { plainTextToTiptap } from "@/lib/editor/converters";
+
+export const MAX_ROWS = 200;
+export const MAX_BYTES = 1_000_000;
+const REQUIRED_COLUMNS = ["type", "prompt", "answer"];
+
+export type CsvIssue = {
+  row: number | null;
+  column?: string;
+  message: string;
+  severity: "error" | "warning";
+};
+
+export type CsvParseResult = {
+  questions: DraftQuestion[];
+  issues: CsvIssue[];
+  totalRows: number;
+  invalidRows: number;
+};
+
+const TYPE_ALIASES: Record<string, DraftQuestion["type"]> = {
+  multiple_choice: "multiple_choice",
+  mcq: "multiple_choice",
+  mc: "multiple_choice",
+  true_false: "true_false",
+  tf: "true_false",
+  "true/false": "true_false",
+  identification: "identification",
+  id: "identification",
+  essay: "essay",
+};
+
+const OPTION_KEYS = ["opt_a", "opt_b", "opt_c", "opt_d", "opt_e", "opt_f"];
+const LETTER_TO_INDEX: Record<string, number> = {
+  a: 0,
+  b: 1,
+  c: 2,
+  d: 3,
+  e: 4,
+  f: 5,
+};
+
+const fileError = (message: string): CsvParseResult => ({
+  questions: [],
+  totalRows: 0,
+  invalidRows: 0,
+  issues: [{ row: null, message, severity: "error" }],
+});
+
+/**
+ * Parses either a CSV spreadsheet or Excel (.xlsx) file into structured DraftQuestions.
+ */
+export async function parseExamCsv(file: File): Promise<CsvParseResult> {
+  if (file.size > MAX_BYTES) {
+    return fileError("File exceeds maximum allowed size of 1 MB");
+  }
+
+  const isExcel =
+    file.name.endsWith(".xlsx") ||
+    file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+  if (isExcel) {
+    try {
+      const rows = (await readXlsxFile(file)) as unknown as any[][];
+      if (!rows || rows.length === 0) {
+        return fileError("The uploaded Excel file is empty.");
+      }
+
+      const headerRow: string[] = (rows[0] || []).map((c: any) =>
+        String(c || "").trim().toLowerCase()
+      );
+
+      const records: Record<string, string>[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.every((c: any) => c === null || c === undefined || String(c).trim() === "")) {
+          continue; // Skip blank rows
+        }
+        const record: Record<string, string> = {};
+        headerRow.forEach((header: string, colIdx: number) => {
+          if (header) {
+            const val = row[colIdx];
+            record[header] = val !== null && val !== undefined ? String(val).trim() : "";
+          }
+        });
+        records.push(record);
+      }
+
+      return validateRows(records, headerRow);
+    } catch (err: any) {
+      return fileError(`Failed to parse Excel file: ${err.message || "Invalid spreadsheet format"}`);
+    }
+  }
+
+  // Standard CSV parsing with PapaParse
+  return new Promise((resolve) => {
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (h) => h.trim().toLowerCase(),
+      complete: (res) => {
+        resolve(validateRows(res.data, res.meta.fields ?? []));
+      },
+      error: (err) => resolve(fileError(err.message)),
+    });
+  });
+}
+
+export function validateRows(
+  rows: Record<string, string>[],
+  fields: string[]
+): CsvParseResult {
+  const missing = REQUIRED_COLUMNS.filter((c) => !fields.includes(c));
+  if (missing.length) {
+    return fileError(
+      `Missing required column(s): ${missing.join(", ")}. Download the template for the required format.`
+    );
+  }
+
+  if (rows.length === 0) {
+    return fileError("The uploaded file contains no question rows.");
+  }
+
+  if (rows.length > MAX_ROWS) {
+    return fileError(`File contains too many rows (maximum ${MAX_ROWS} allowed).`);
+  }
+
+  const issues: CsvIssue[] = [];
+  const questions: DraftQuestion[] = [];
+  const seenOrders = new Set<number>();
+  let invalidRows = 0;
+
+  rows.forEach((raw, i) => {
+    const rowNum = i + 2; // Line 1 is the header
+    const rowIssues: CsvIssue[] = [];
+    const err = (column: string, message: string) =>
+      rowIssues.push({ row: rowNum, column, message, severity: "error" });
+    const warn = (column: string, message: string) =>
+      rowIssues.push({ row: rowNum, column, message, severity: "warning" });
+    const cell = (k: string) => (raw[k] ?? "").trim();
+
+    const typeRaw = cell("type").toLowerCase();
+    const type = TYPE_ALIASES[typeRaw];
+    if (!type) {
+      err("type", `"${cell("type")}" is not a recognized question type.`);
+    }
+
+    const prompt = cell("prompt");
+    if (!prompt) {
+      err("prompt", "Question prompt is required.");
+    }
+
+    let order = i + 1;
+    if (cell("order")) {
+      const parsedOrder = Number(cell("order"));
+      if (!Number.isInteger(parsedOrder) || parsedOrder < 1) {
+        err("order", "Order must be a positive integer.");
+      } else if (seenOrders.has(parsedOrder)) {
+        warn("order", `Duplicate order ${parsedOrder}. Question will be appended sequentially.`);
+      } else {
+        order = parsedOrder;
+        seenOrders.add(parsedOrder);
+      }
+    }
+
+    let points = 1.0;
+    if (cell("points")) {
+      const parsedPoints = Number(cell("points"));
+      if (isNaN(parsedPoints) || parsedPoints <= 0 || parsedPoints > 100) {
+        warn("points", "Points must be between 0.01 and 100. Defaulting to 1.0.");
+      } else {
+        points = parsedPoints;
+      }
+    }
+
+    const tags = cell("tags")
+      ? cell("tags")
+          .split(/[,|]/)
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [];
+
+    const context = cell("context") || undefined;
+    const instructions = cell("instructions") || undefined;
+
+    let options: string[] | null = null;
+    let answers: string[] = [];
+    let answerSource: "provided" | "ai_inferred" | "missing" = "provided";
+    let confirmed = false;
+
+    if (type === "multiple_choice") {
+      const rawOpts = OPTION_KEYS.map((k) => cell(k)).filter(Boolean);
+      if (rawOpts.length < 2) {
+        err("opt_a", "Multiple choice questions require at least 2 options.");
+      }
+      options = rawOpts;
+
+      const rawAnswer = cell("answer");
+      if (!rawAnswer) {
+        err("answer", "Multiple choice question requires an answer key.");
+      } else {
+        const letterKey = rawAnswer.toLowerCase();
+        if (letterKey in LETTER_TO_INDEX) {
+          const idx = LETTER_TO_INDEX[letterKey];
+          if (idx < rawOpts.length) {
+            answers = [rawOpts[idx]];
+            confirmed = true;
+          } else {
+            err("answer", `Answer letter '${rawAnswer}' refers to an option that does not exist.`);
+          }
+        } else if (rawOpts.some((o) => o.toLowerCase() === rawAnswer.toLowerCase())) {
+          const matched = rawOpts.find((o) => o.toLowerCase() === rawAnswer.toLowerCase())!;
+          answers = [matched];
+          confirmed = true;
+        } else {
+          err("answer", `Answer '${rawAnswer}' does not match any of the provided options.`);
+        }
+      }
+    } else if (type === "true_false") {
+      options = null;
+      const rawAnswer = cell("answer").toLowerCase();
+      if (["true", "t", "1", "yes"].includes(rawAnswer)) {
+        answers = ["true"];
+        confirmed = true;
+      } else if (["false", "f", "0", "no"].includes(rawAnswer)) {
+        answers = ["false"];
+        confirmed = true;
+      } else {
+        err("answer", "True/False answer must be 'true' or 'false'.");
+      }
+    } else if (type === "identification") {
+      options = null;
+      const rawAnswer = cell("answer");
+      if (!rawAnswer) {
+        err("answer", "Identification question requires at least one accepted answer.");
+      } else {
+        // Split on pipe (|)
+        answers = rawAnswer
+          .split("|")
+          .map((a) => a.trim())
+          .filter(Boolean);
+        if (answers.length === 0) {
+          err("answer", "No valid accepted answers found after splitting.");
+        } else {
+          confirmed = true;
+        }
+      }
+    } else if (type === "essay") {
+      options = null;
+      answers = [];
+      answerSource = "missing";
+      confirmed = true; // Essays do not require an answer key
+    }
+
+    if (rowIssues.some((issue) => issue.severity === "error")) {
+      invalidRows++;
+    }
+
+    issues.push(...rowIssues);
+
+    if (type) {
+      questions.push({
+        tempId: crypto.randomUUID(),
+        order,
+        type,
+        prompt: prompt || "",
+        promptJson: plainTextToTiptap(prompt || ""),
+        options,
+        answers,
+        answerSource,
+        points,
+        tags,
+        context,
+        instructions,
+        warnings: rowIssues
+          .filter((i) => i.severity === "warning")
+          .map((i) => i.message),
+        confirmed,
+      });
+    }
+  });
+
+  return {
+    questions,
+    issues,
+    totalRows: rows.length,
+    invalidRows,
+  };
+}

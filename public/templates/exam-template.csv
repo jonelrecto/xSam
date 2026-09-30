@@ -1,0 +1,5 @@
+﻿order,type,prompt,opt_a,opt_b,opt_c,opt_d,answer,points
+1,multiple_choice,"Which planet is closest to the Sun?",Venus,Mercury,Earth,Mars,B,1
+2,true_false,"Water boils at 100°C at sea level.",,,,,true,1
+3,identification,"Capital city of the Philippines",,,,,Manila|City of Manila,2
+4,essay,"Explain the water cycle and its importance to ecosystems.",,,,,,5

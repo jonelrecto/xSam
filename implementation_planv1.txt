@@ -1,0 +1,1744 @@
+
+Updated memory, searched the web
+Better Auth is confirmed. Milestone 1 is assumed to be running. Here is milestone 2 (authentication and roles), followed by what comes next.
+
+1. Install and configure
+bash
+npm i better-auth resend
+.env.local:
+
+BETTER_AUTH_SECRET=      # openssl rand -base64 32
+BETTER_AUTH_URL=http://localhost:3000
+REQUIRE_EMAIL_VERIFICATION=false
+RESEND_API_KEY=          # optional in dev
+# later, for Google sign-in:
+# GOOGLE_CLIENT_ID=  GOOGLE_CLIENT_SECRET=
+Email gotcha for an open prototype: most email providers (Resend included) only let you send to arbitrary addresses once you've verified a sending domain. Without one, verification emails won't reach students. That's why I added the REQUIRE_EMAIL_VERIFICATION flag: keep it false while you build, and switch it on once you have a domain (the cheap TLD idea from earlier works). Check your provider's current free-tier limits before relying on them.
+
+src/lib/email.ts prints links to the console when there's no API key, so local signup and reset flows work without a provider:
+
+ts
+import { Resend } from "resend";
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+export async function sendEmail(to: string, subject: string, url: string) {
+  if (!resend) return console.log(`[email:dev] ${subject} -> ${to}\n${url}`);
+  await resend.emails.send({
+    from: "SEPE <no-reply@yourdomain.com>", to, subject,
+    html: `<p><a href="${url}">${subject}</a></p>`,
+  });
+}
+2. Server auth config: src/lib/auth.ts
+ts
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { db } from "@/lib/db";
+import * as schema from "@/lib/db/schema";
+import { sendEmail } from "@/lib/email";
+
+const SELF_SIGNUP_ROLES = ["student", "teacher"];
+
+export const auth = betterAuth({
+  database: drizzleAdapter(db, { provider: "pg", schema }),
+
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 8,
+    requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION === "true",
+    sendResetPassword: async ({ user, url }) =>
+      sendEmail(user.email, "Reset your password", url),
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    sendVerificationEmail: async ({ user, url }) =>
+      sendEmail(user.email, "Verify your email", url),
+  },
+
+  user: {
+    additionalFields: {
+      role: { type: "string", required: false, defaultValue: "student", input: true },
+    },
+  },
+
+  databaseHooks: {
+    user: {
+      create: {
+        // only student/teacher can be self-selected; anything else becomes student
+        before: async (user) => {
+          const role = SELF_SIGNUP_ROLES.includes(user.role as string) ? user.role : "student";
+          return { data: { ...user, role } };
+        },
+      },
+      update: {
+        // role can never be changed through the auth API
+        before: async (user) => {
+          const { role, ...rest } = user as Record<string, unknown>;
+          return { data: rest };
+        },
+      },
+    },
+  },
+
+  rateLimit: { enabled: true, window: 60, max: 30 },
+
+  // socialProviders: { google: { clientId: ..., clientSecret: ... } }, // later
+  plugins: [nextCookies()], // keep this last
+});
+Two notes on this file:
+
+The nextCookies() plugin needs to be the last plugin in the array so cookies set from Server Actions work. 
+next-safe-action
+The update.before hook matters. Because role is an input field, without it a logged-in student could call updateUser({ role: "admin" }) themselves. Hook signatures can vary between Better Auth versions, so confirm this file against the current docs and run the security tests in section 7. This is the part where a small mistake becomes a security hole.
+Better Auth handles password hashing itself, so you don't need to add an argon2 package. Admin accounts are created by updating the role column directly in the database (or with a small seed script), which doesn't go through these hooks.
+
+3. Database schema
+Better Auth generates the tables for you. Per the usual Drizzle workflow, run the Better Auth CLI to generate an auth schema file, copy its contents into your Drizzle schema, then generate and push with drizzle-kit: 
+github
+
+bash
+npx @better-auth/cli generate     # writes auth-schema.ts (user, session, account, verification)
+# copy its contents into src/lib/db/schema.ts, then:
+npx drizzle-kit generate && npx drizzle-kit push
+After copying, check that the user table has a role text column defaulting to 'student'. Also add the quota table now, since milestone 5 will need it:
+
+ts
+export const importUsage = pgTable("import_usage", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  day: date("day").notNull(),
+  count: integer("count").notNull().default(0),
+}, (t) => [unique().on(t.userId, t.day)]);
+4. Routes and clients
+src/app/api/auth/[...all]/route.ts:
+
+ts
+import { auth } from "@/lib/auth";
+import { toNextJsHandler } from "better-auth/next-js";
+export const { GET, POST } = toNextJsHandler(auth);
+src/lib/auth-client.ts:
+
+ts
+import { createAuthClient } from "better-auth/react";
+export const authClient = createAuthClient();
+5. Role guards: src/lib/auth-server.ts
+ts
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import type { Role } from "@/lib/permissions";
+
+export const homeFor = (role: Role) => `/${role}`;
+
+export async function getSession() {
+  return auth.api.getSession({ headers: await headers() });
+}
+
+export async function requireRole(allowed: Role[]) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const role = session.user.role as Role;
+  if (!allowed.includes(role)) redirect(homeFor(role));
+  return session;
+}
+Use it in three places: each route-group layout, every route handler, and every server action.
+
+ts
+// (teacher)/teacher/layout.tsx
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  await requireRole(["teacher", "admin"]);
+  return <>{children}</>;
+}
+Use ["student"] for the student layout and ["admin"] for the admin layout. In the proxy file (proxy.ts, or middleware.ts on older Next.js versions), only do a cheap check for a session cookie and redirect to /login. It's a convenience, and the real checks are the layout and handler guards above, because middleware-only protection has been bypassed before.
+
+6. UI with shadcn
+Signup (/signup): Card with Form fields for name, email, password, confirm password, and a RadioGroup for Student or Teacher (default Student). Validate with Zod and react-hook-form:
+
+ts
+const signupSchema = z.object({
+  name: z.string().trim().min(2),
+  email: z.string().email(),
+  password: z.string().min(8),
+  confirm: z.string(),
+  role: z.enum(["student", "teacher"]),
+}).refine(v => v.password === v.confirm, { path: ["confirm"], message: "Passwords don't match" });
+
+// on submit
+const { error } = await authClient.signUp.email({ name, email, password, role });
+if (error) toast.error(error.message);
+else router.push(role === "teacher" ? "/teacher" : "/student"); // or /verify-email if enabled
+If the client types complain about role, add inferAdditionalFields<typeof auth>() to createAuthClient's plugins.
+
+Other pages:
+
+/login: email and password, with a "Forgot password?" link.
+/forgot-password and /reset-password: use authClient.requestPasswordReset and authClient.resetPassword.
+/verify-email: a "check your inbox" screen, shown only when the flag is on.
+/onboarding: leave as an empty stub. It only becomes necessary when Google sign-in arrives.
+User menu: a DropdownMenu with an Avatar, plus a sign-out action.
+Dashboards: empty pages for /student, /teacher, and /admin showing the user's name and role.
+7. Done when (these tests matter most)
+A student can sign up, log in, and reach /student, but visiting /teacher or /admin redirects them back.
+A teacher can sign up and reach /teacher, but not /admin.
+Signing up with role: "admin" (send the request manually with curl or the browser console) creates a student, not an admin.
+A logged-in student calling authClient.updateUser({ role: "teacher" }) does not change their role in the database.
+Password reset works end to end (the link prints to your console in dev).
+Rate limiting kicks in if you hammer /login repeatedly.
+The Google provider block is present but commented out, ready for later.
+Tests 3 and 4 are the ones I'd never skip, since a role escalation bug defeats the whole permission model.
+
+Once these pass, we move to milestone 3: create-exam wizard step 1 (details form), the CSV template download, the Papa Parse validation UI with the row-and-column error table, and loading the results into the shared draft state.
+
+proceed to milestone 3
+
+Updated memory
+Milestone 3 has three parts: the exam details form (wizard step 1), the CSV template and validator, and loading valid rows into a shared draft store. Milestone 4 will replace that in-memory store with the full Draft Studio and autosave.
+
+0. Schema change from the original doc
+Better Auth owns the user table, and its ids are text, not UUID. So the original users table is replaced, and every foreign key to a user (exams.teacher_id, later exam_sessions.student_id) becomes text. Add this to src/lib/db/schema.ts, then run drizzle-kit generate and push:
+
+ts
+export const exams = pgTable("exams", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teacherId: text("teacher_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  durationMinutes: integer("duration_minutes").notNull(),
+  status: examStatus("status").notNull().default("draft"),
+  shuffleQuestions: boolean("shuffle_questions").notNull().default(true),
+  shuffleOptions: boolean("shuffle_options").notNull().default(true),
+  scheduledStart: timestamp("scheduled_start", { withTimezone: true }),
+  scheduledEnd: timestamp("scheduled_end", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+The questions table comes in milestone 4, when drafts start persisting.
+
+1. Wizard step 1: exam details
+Add to src/lib/schemas/exam.ts:
+
+ts
+export const examDetailsSchema = z.object({
+  title: z.string().trim().min(3, "At least 3 characters").max(255),
+  description: z.string().trim().max(2000).optional(),
+  durationMinutes: z.number().int().min(5).max(480),
+  scheduledStart: z.string().datetime().optional(),
+  scheduledEnd: z.string().datetime().optional(),
+  shuffleQuestions: z.boolean(),
+  shuffleOptions: z.boolean(),
+})
+.refine(v => !(v.scheduledStart && v.scheduledEnd) ||
+  new Date(v.scheduledEnd) > new Date(v.scheduledStart),
+  { path: ["scheduledEnd"], message: "End must be after start" })
+.refine(v => !(v.scheduledStart && v.scheduledEnd) ||
+  (new Date(v.scheduledEnd).getTime() - new Date(v.scheduledStart).getTime()) / 60000 >= v.durationMinutes,
+  { path: ["scheduledEnd"], message: "Window is shorter than the exam duration" });
+Form (ExamDetailsForm, client component): shadcn Form with Input (title), Textarea (description), a number Input for duration (register it with valueAsNumber to avoid resolver typing problems), two Switch toggles for shuffling, and two <input type="datetime-local"> fields for the schedule. Native datetime inputs are fine for a prototype, and you can swap in Calendar plus Popover later. Convert to ISO before sending with new Date(value).toISOString(), and store UTC.
+
+Server action:
+
+ts
+"use server";
+import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth-server";
+
+export async function createExam(input: unknown) {
+  const session = await requireRole(["teacher", "admin"]);
+  const parsed = examDetailsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: "Invalid exam details" };
+
+  const d = parsed.data;
+  const [row] = await db.insert(exams).values({
+    teacherId: session.user.id,
+    title: d.title, description: d.description ?? null,
+    durationMinutes: d.durationMinutes,
+    shuffleQuestions: d.shuffleQuestions, shuffleOptions: d.shuffleOptions,
+    scheduledStart: d.scheduledStart ? new Date(d.scheduledStart) : null,
+    scheduledEnd: d.scheduledEnd ? new Date(d.scheduledEnd) : null,
+  }).returning({ id: exams.id });
+
+  redirect(`/teacher/exams/${row.id}/questions`); // keep redirect outside try/catch
+}
+Ownership helper: every page and action that touches an exam must check that it belongs to the caller.
+
+ts
+export async function getOwnedExam(examId: string) {
+  const session = await requireRole(["teacher", "admin"]);
+  const exam = await db.query.exams.findFirst({ where: eq(exams.id, examId) });
+  if (!exam || (session.user.role !== "admin" && exam.teacherId !== session.user.id)) notFound();
+  return exam;
+}
+Wizard chrome: a small WizardSteps component showing Details, Questions, Review, Publish, with steps 3 and 4 disabled for now. Routes are /teacher/exams/new (step 1) and /teacher/exams/[examId]/questions (step 2, which calls getOwnedExam). The /teacher dashboard gets a "Create exam" button and a simple table of the teacher's exams.
+
+2. CSV template
+Put this at public/templates/exam-template.csv (save it as UTF-8 with BOM so Excel opens accented characters correctly):
+
+csv
+order,type,prompt,opt_a,opt_b,opt_c,opt_d,answer,points
+1,multiple_choice,"Which planet is closest to the Sun?",Venus,Mercury,Earth,Mars,B,1
+2,true_false,"Water boils at 100°C at sea level.",,,,,true,1
+3,identification,"Capital city of the Philippines",,,,,Manila|City of Manila,2
+4,essay,"Explain the water cycle.",,,,,,5
+The template's button is just <a href="/templates/exam-template.csv" download>. Add a short "Rules" Alert beside it: answer is a letter A–D for multiple choice, true or false for true/false, and | separates multiple accepted answers for identification. Essay questions are graded manually and have no answer.
+
+3. The CSV validator: src/lib/csv/parse-exam-csv.ts
+The validation logic is a pure function (validateRows), so you can unit test it without files.
+
+ts
+import Papa from "papaparse";
+import { draftQuestionSchema, type DraftQuestion } from "@/lib/schemas/exam";
+
+export const MAX_ROWS = 200;
+export const MAX_BYTES = 1_000_000;
+const REQUIRED_COLUMNS = ["type", "prompt", "answer"];
+
+export type CsvIssue = { row: number | null; column?: string; message: string; severity: "error" | "warning" };
+export type CsvParseResult = { questions: DraftQuestion[]; issues: CsvIssue[]; totalRows: number; invalidRows: number };
+
+const TYPE_ALIASES: Record<string, DraftQuestion["type"]> = {
+  multiple_choice: "multiple_choice", mcq: "multiple_choice", mc: "multiple_choice",
+  true_false: "true_false", tf: "true_false", "true/false": "true_false",
+  identification: "identification", id: "identification",
+  essay: "essay",
+};
+
+const fileError = (message: string): CsvParseResult => ({
+  questions: [], totalRows: 0, invalidRows: 0,
+  issues: [{ row: null, message, severity: "error" }],
+});
+
+export function parseExamCsv(file: File): Promise<CsvParseResult> {
+  return new Promise((resolve) => {
+    if (file.size > MAX_BYTES) return resolve(fileError("File is larger than 1 MB"));
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (h) => h.trim().toLowerCase(),
+      complete: (res) => resolve(validateRows(res.data, res.meta.fields ?? [])),
+      error: (err) => resolve(fileError(err.message)),
+    });
+  });
+}
+
+export function validateRows(rows: Record<string, string>[], fields: string[]): CsvParseResult {
+  const missing = REQUIRED_COLUMNS.filter((c) => !fields.includes(c));
+  if (missing.length) return fileError(`Missing column(s): ${missing.join(", ")}. Download the template to see the expected headers.`);
+  if (rows.length === 0) return fileError("The file has no question rows");
+  if (rows.length > MAX_ROWS) return fileError(`Too many rows (max ${MAX_ROWS})`);
+
+  const issues: CsvIssue[] = [];
+  const good: DraftQuestion[] = [];
+  const seenOrders = new Set<number>();
+  let invalidRows = 0;
+
+  rows.forEach((raw, i) => {
+    const row = i + 2; // line 1 is the header
+    const rowIssues: CsvIssue[] = [];
+    const err = (column: string, message: string) => rowIssues.push({ row, column, message, severity: "error" });
+    const warn = (column: string, message: string) => rowIssues.push({ row, column, message, severity: "warning" });
+    const cell = (k: string) => (raw[k] ?? "").trim();
+
+    const type = TYPE_ALIASES[cell("type").toLowerCase()];
+    if (!type) err("type", `"${cell("type")}" is not a valid type`);
+
+    const prompt = cell("prompt");
+    if (!prompt) err("prompt", "Question text is required");
+
+    let order = i + 1;
+    if (cell("order")) {
+      const n = Number(cell("order"));
+      if (!Number.isInteger(n) || n < 1) err("order", "Must be a whole number of 1 or more");
+      else if (seenOrders.has(n)) err("order", `Duplicate order ${n}`);
+      else { order = n; seenOrders.add(n); }
+    }
+
+    let points = 1;
+    if (cell("points")) {
+      const p = Number(cell("points"));
+      if (!(p > 0 && p <= 100)) err("points", "Must be a number greater than 0 and up to 100");
+      else points = p;
+    }
+
+    let options: string[] | null = null;
+    let answers: string[] = [];
+
+    if (type === "multiple_choice") {
+      const opts = ["opt_a", "opt_b", "opt_c", "opt_d"].map(cell);
+      const filled = opts.filter(Boolean);
+      if (filled.length < 2) err("opt_a", "At least 2 options are required");
+      else if (new Set(filled.map((o) => o.toLowerCase())).size !== filled.length)
+        err("opt_a", "Options must be different from each other");
+      const letter = cell("answer").toUpperCase();
+      const idx = "ABCD".indexOf(letter);
+      if (letter.length !== 1 || idx === -1 || !opts[idx])
+        err("answer", `"${cell("answer")}" must be A–D and point to a filled option`);
+      else answers = [opts[idx]];
+      options = filled;
+    } else if (type === "true_false") {
+      const a = cell("answer").toLowerCase();
+      if (a !== "true" && a !== "false") err("answer", 'Must be "true" or "false"');
+      else answers = [a];
+    } else if (type === "identification") {
+      answers = cell("answer").split("|").map((s) => s.trim()).filter(Boolean);
+      if (answers.length === 0) err("answer", "At least one accepted answer is required");
+    } else if (type === "essay" && cell("answer")) {
+      warn("answer", "Essay answers are ignored (essays are graded manually)");
+    }
+
+    if (rowIssues.some((r) => r.severity === "error")) {
+      invalidRows++; issues.push(...rowIssues); return;
+    }
+
+    const candidate = {
+      tempId: crypto.randomUUID(), order, type, prompt, options, answers,
+      answerSource: type === "essay" ? "missing" : "provided",
+      points, warnings: [], confirmed: false,
+    };
+    const parsed = draftQuestionSchema.safeParse(candidate);
+    if (!parsed.success) {
+      invalidRows++;
+      issues.push({ row, message: parsed.error.issues[0].message, severity: "error" });
+      return;
+    }
+    issues.push(...rowIssues);
+    good.push(parsed.data);
+  });
+
+  good.sort((a, b) => a.order - b.order).forEach((q, i) => (q.order = i + 1));
+  return { questions: good, issues, totalRows: rows.length, invalidRows };
+}
+A few design choices here:
+
+The parser reports every problem in one pass, so the teacher fixes the file once instead of re-uploading repeatedly.
+Multiple-choice answers are stored as the option text, not the letter. That keeps them consistent with the shared publishableQuestionSchema, and it survives option shuffling later.
+Essays get answerSource: "missing", and the publish gate already exempts essays from needing a key.
+This is convenience validation in the browser. The server re-validates with the same schemas when saving in milestone 4.
+4. Shared draft store: src/hooks/use-draft-store.ts
+ts
+import { create } from "zustand";
+import type { DraftQuestion } from "@/lib/schemas/exam";
+
+type Source = "csv" | "pdf" | "manual";
+type DraftState = {
+  examId: string | null;
+  questions: DraftQuestion[];
+  source: Source | null;
+  load: (examId: string, incoming: DraftQuestion[], mode: "replace" | "append", source: Source) => void;
+  clear: () => void;
+};
+
+export const useDraftStore = create<DraftState>((set) => ({
+  examId: null, questions: [], source: null,
+  load: (examId, incoming, mode, source) =>
+    set((s) => {
+      const base = s.examId === examId && mode === "append" ? s.questions : [];
+      const merged = [...base, ...incoming].map((q, i) => ({ ...q, order: i + 1 }));
+      return { examId, questions: merged, source };
+    }),
+  clear: () => set({ examId: null, questions: [], source: null }),
+}));
+It's in memory only for now, so a refresh loses the draft. Milestone 4 adds autosave to the database.
+
+5. CsvUploader component (step 2 UI)
+Layout, top to bottom:
+
+Template row: "Download template" button plus the rules Alert.
+Dropzone: a dashed Card wrapping a hidden <input type="file" accept=".csv">, with drag-and-drop handlers. It checks the .csv extension and then calls parseExamCsv.
+Summary Alert after parsing:
+Green when there are no errors: "48 questions ready to load."
+Red when there are errors: "3 rows have errors. 45 rows are valid."
+A yellow note if there are only warnings.
+Issues table: shadcn Table inside a ScrollArea with columns Row, Column, Message, and a Badge for severity (destructive for error, secondary for warning). File-level issues (row: null) display as "File".
+Actions:
+Load N questions is enabled only when there are zero errors.
+Load valid rows only (skip N invalid) is an outline button, shown only when some rows are valid and some are not. It asks for confirmation in a Dialog, because skipping rows silently changes the exam.
+When the store already has questions for this exam, show Replace and Add to existing instead of a single load button.
+Preview: after loading, show a read-only Table (order, type badge, prompt truncated, points) and a "Continue to review" button that stays disabled until milestone 4.
+Skeleton of the handler:
+
+tsx
+"use client";
+export function CsvUploader({ examId }: { examId: string }) {
+  const [result, setResult] = useState<CsvParseResult | null>(null);
+  const existing = useDraftStore((s) => s.questions.length);
+  const load = useDraftStore((s) => s.load);
+
+  async function handleFile(file?: File) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) return toast.error("Please upload a .csv file");
+    setResult(await parseExamCsv(file));
+  }
+  const errors = result?.issues.filter((i) => i.severity === "error") ?? [];
+  // ...render summary, issues table, and buttons calling load(examId, result.questions, mode, "csv")
+}
+6. Tests (add Vitest)
+bash
+npm i -D vitest
+Write validateRows tests for these cases. The parser is where wrong exam answers would silently slip in:
+
+Case	Expected
+Valid row of each of the 4 types	4 questions, 0 errors
+MC answer E, or letter pointing to an empty option	error on answer, row number correct
+MC with only 1 option, or duplicate options	error on opt_a
+TF answer yes	error on answer
+Identification Manila|City of Manila	answers has 2 entries
+Duplicate order values	error on the second one
+Missing answer header	file-level error, no rows processed
+Row with error mixed among valid rows	that row skipped, others loaded, invalidRows = 1
+Blank points	defaults to 1
+Extra blank lines and trailing spaces	ignored or trimmed
+Done when
+A teacher can fill in details, submit, and land on /teacher/exams/[id]/questions, with the exam saved as draft under their account.
+Another teacher (or a student) opening that URL gets a 404 or redirect, and does not see the exam.
+Uploading the template loads 4 valid questions into the preview.
+A deliberately broken CSV shows the right row and column in the error table, and "Load" stays disabled.
+"Load valid rows only" skips the bad rows after confirmation.
+Non-CSV files, files over 1 MB, and files with more than 200 rows are rejected with clear messages.
+Vitest cases above pass.
+Next is milestone 4, the Draft Studio: the questions table, autosave, the editable question cards with confirm badges, drag-to-reorder, and the publish gate. Once that works, you have a complete exam creator even before PDF import.
+
+proceed on milestone 4
+
+Updated memory
+Milestone 4 turns the in-memory draft into a persisted, editable one: the questions table, autosave with conflict handling, editable question cards, drag-to-reorder, and the publish gate. Building it exposed a few problems in my earlier code, so I'll cover those corrections first.
+
+0. Corrections to earlier milestones
+The draft schema was too strict for autosave. draftQuestionSchema required options.min(2) and a non-empty prompt. A brand-new "Add question" card would fail validation and autosave would reject it. Split it into a lenient schema for saving drafts and a strict one for publishing. Replace both in src/lib/schemas/exam.ts:
+ts
+export const draftQuestionSchema = z.object({
+  tempId: z.string(),
+  order: z.number().int().positive(),
+  type: questionType,
+  prompt: z.string().max(5000),
+  options: z.array(z.string().max(500)).max(6).nullable(),
+  answers: z.array(z.string().max(500)).max(20),
+  answerSource: z.enum(["provided", "ai_inferred", "missing"]),
+  points: z.number().positive().max(100),
+  sourcePage: z.number().int().positive().optional(),
+  warnings: z.array(z.string().max(300)).max(20).default([]),
+  confirmed: z.boolean().default(false),
+});
+export type DraftQuestion = z.infer<typeof draftQuestionSchema>;
+export const saveDraftSchema = z.array(draftQuestionSchema).max(200);
+
+// strict: used by the publish gate and shown live on each card
+export const publishableQuestionSchema = draftQuestionSchema.superRefine((q, ctx) => {
+  const fail = (message: string, path: string[] = ["answers"]) =>
+    ctx.addIssue({ code: "custom", message, path });
+
+  if (!q.prompt.trim()) fail("Question text is required", ["prompt"]);
+  if (q.type !== "essay" && !q.confirmed) fail("Answer not confirmed", ["confirmed"]);
+
+  switch (q.type) {
+    case "multiple_choice": {
+      const opts = (q.options ?? []).map((o) => o.trim());
+      if (opts.length < 2 || opts.some((o) => !o)) return fail("Need at least 2 non-empty options", ["options"]);
+      if (new Set(opts.map((o) => o.toLowerCase())).size !== opts.length) return fail("Options must be different", ["options"]);
+      if (q.answers.length !== 1 || !opts.includes(q.answers[0].trim())) fail("Pick the correct option");
+      break;
+    }
+    case "true_false":
+      if (q.answers.length !== 1 || !["true", "false"].includes(q.answers[0].toLowerCase())) fail("Choose true or false");
+      break;
+    case "identification":
+      if (!q.answers.some((a) => a.trim())) fail("Add at least one accepted answer");
+      break;
+    case "essay":
+      break;
+  }
+});
+Essays are exempt from the confirm rule, since they have no key. Your Milestone 3 tests still pass, but rerun them.
+
+Wizard simplification. Milestone 3's separate "Review" step would have forced the in-memory draft to survive a page navigation. Make it three steps: Details, Questions and answer key, Publish. CSV import, manual editing, and (later) PDF import all live on one Questions page, with Publish as a dialog.
+Helpers vs server actions. A file marked "use server" turns every export into a callable endpoint. Keep getOwnedExam in a normal module (src/lib/exams.ts, no directive) and put only the actions in src/app/actions/exam.ts.
+1. Database
+Add to schema.ts, then run drizzle-kit generate and push:
+
+ts
+// add to the exams table:
+draftVersion: integer("draft_version").notNull().default(0),
+
+export const questions = pgTable("questions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  examId: uuid("exam_id").notNull().references(() => exams.id, { onDelete: "cascade" }),
+  orderIndex: integer("order_index").notNull(),
+  type: questionType("type").notNull(),
+  prompt: text("prompt").notNull(),
+  options: jsonb("options").$type<string[] | null>(),
+  answers: jsonb("answers").$type<string[]>().notNull().default([]),
+  answerSource: text("answer_source").notNull().default("provided"),
+  confirmed: boolean("confirmed").notNull().default(false),
+  points: numeric("points", { precision: 5, scale: 2 }).notNull().default("1.00"),
+  sourcePage: integer("source_page"),
+  warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("idx_questions_exam").on(t.examId, t.orderIndex)]);
+This replaces the original correct_answer TEXT with an answers JSONB array, so identification questions can have several accepted answers. Drizzle returns numeric as a string, so convert with Number() when loading.
+
+2. Server actions: src/app/actions/exam.ts
+ts
+"use server";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { exams, questions } from "@/lib/db/schema";
+import { getOwnedExam } from "@/lib/exams";
+import { saveDraftSchema, publishableQuestionSchema } from "@/lib/schemas/exam";
+
+export async function saveDraft(examId: string, baseVersion: number, input: unknown) {
+  const exam = await getOwnedExam(examId);
+  if (exam.status !== "draft") return { ok: false, code: "LOCKED" } as const;
+
+  const parsed = saveDraftSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, code: "INVALID" } as const;
+
+  // optimistic lock: only save if nobody saved since this client loaded
+  const bumped = await db.update(exams)
+    .set({ draftVersion: sql`${exams.draftVersion} + 1` })
+    .where(and(eq(exams.id, examId), eq(exams.draftVersion, baseVersion), eq(exams.status, "draft")))
+    .returning({ v: exams.draftVersion });
+  if (bumped.length === 0) return { ok: false, code: "CONFLICT" } as const;
+
+  // server ignores client tempIds and generates its own row ids
+  const rows = parsed.data.map((q, i) => ({
+    examId, orderIndex: i + 1, type: q.type, prompt: q.prompt,
+    options: q.options, answers: q.answers, answerSource: q.answerSource,
+    confirmed: q.confirmed, points: String(q.points),
+    sourcePage: q.sourcePage ?? null, warnings: q.warnings,
+  }));
+  const del = db.delete(questions).where(eq(questions.examId, examId));
+  if (rows.length) await db.batch([del, db.insert(questions).values(rows)]);
+  else await del;
+
+  return { ok: true, version: bumped[0].v } as const;
+}
+
+export async function getDraftVersion(examId: string) {
+  return (await getOwnedExam(examId)).draftVersion;
+}
+
+export async function publishExam(examId: string) {
+  const exam = await getOwnedExam(examId);
+  if (exam.status !== "draft") return { ok: false, issues: ["This exam is already published"] } as const;
+
+  const rows = await db.select().from(questions)
+    .where(eq(questions.examId, examId)).orderBy(asc(questions.orderIndex));
+
+  const issues: string[] = [];
+  if (rows.length === 0) issues.push("Add at least one question");
+  for (const r of rows) {
+    const res = publishableQuestionSchema.safeParse({
+      tempId: r.id, order: r.orderIndex, type: r.type, prompt: r.prompt,
+      options: r.options, answers: r.answers, answerSource: r.answerSource,
+      points: Number(r.points), warnings: r.warnings, confirmed: r.confirmed,
+    });
+    if (!res.success) issues.push(`Question ${r.orderIndex}: ${res.error.issues[0].message}`);
+  }
+  if (exam.scheduledEnd && exam.scheduledEnd <= new Date()) issues.push("Scheduled end is in the past");
+  if (issues.length) return { ok: false, issues } as const;
+
+  await db.update(exams).set({ status: "published" })
+    .where(and(eq(exams.id, examId), eq(exams.status, "draft")));
+  return { ok: true } as const;
+}
+Why the details matter:
+
+Publish validates what's in the database, not what the browser claims, so the client must flush its autosave first.
+Once an exam leaves draft, saveDraft refuses to touch it. This freezes the answer key for the exam's whole life. Every later milestone relies on that.
+Replace-all is safe here. No student answers reference draft questions yet, so regenerating row ids on each save is fine, and it avoids letting a client-supplied id collide with another teacher's rows.
+The Neon HTTP driver doesn't support interactive transactions, which is why the delete and insert go through db.batch(). The version bump is a separate step before it, so the pair isn't fully atomic. If the batch fails after the bump, the client's next save reports a conflict, and the dialog below lets the teacher overwrite with their version. That's an acceptable trade for a prototype. Confirm db.batch against the Drizzle docs for your installed version.
+3. Draft store: src/hooks/use-draft-store.ts
+Replace the Milestone 3 store. The revision and savedRevision counters let autosave know whether edits happened while a save was in flight.
+
+ts
+import { create } from "zustand";
+import type { DraftQuestion } from "@/lib/schemas/exam";
+
+type QType = DraftQuestion["type"];
+const renumber = (qs: DraftQuestion[]) => qs.map((q, i) => ({ ...q, order: i + 1 }));
+
+export const blankQuestion = (type: QType): DraftQuestion => ({
+  tempId: crypto.randomUUID(), order: 0, type, prompt: "",
+  options: type === "multiple_choice" ? ["", ""] : null,
+  answers: [], answerSource: type === "essay" ? "missing" : "provided",
+  points: 1, warnings: [], confirmed: false,
+});
+
+type State = {
+  examId: string | null; hydrated: boolean; version: number;
+  revision: number; savedRevision: number; questions: DraftQuestion[];
+  init: (examId: string, qs: DraftQuestion[], version: number) => void;
+  load: (qs: DraftQuestion[], mode: "replace" | "append") => void;
+  add: (type: QType) => void;
+  remove: (id: string) => void;
+  duplicate: (id: string) => void;
+  move: (from: number, to: number) => void;
+  patch: (id: string, p: Partial<DraftQuestion>) => void;
+  setType: (id: string, type: QType) => void;
+  setOption: (id: string, idx: number, text: string) => void;
+  addOption: (id: string) => void;
+  removeOption: (id: string, idx: number) => void;
+  setAnswers: (id: string, answers: string[]) => void;   // teacher chose it = confirmed
+  setConfirmed: (id: string, v: boolean) => void;
+  confirmAllProvided: () => void;
+  markSaved: (version: number, revision: number) => void;
+};
+
+export const useDraftStore = create<State>((set) => {
+  const mutate = (fn: (qs: DraftQuestion[]) => DraftQuestion[]) =>
+    set((s) => ({ questions: renumber(fn(s.questions)), revision: s.revision + 1 }));
+  const mapQ = (id: string, fn: (q: DraftQuestion) => DraftQuestion) =>
+    mutate((qs) => qs.map((q) => (q.tempId === id ? fn(q) : q)));
+
+  return {
+    examId: null, hydrated: false, version: 0, revision: 0, savedRevision: 0, questions: [],
+    init: (examId, qs, version) =>
+      set({ examId, hydrated: true, version, questions: renumber(qs), revision: 0, savedRevision: 0 }),
+    load: (qs, mode) => mutate((cur) => (mode === "append" ? [...cur, ...qs] : qs)),
+    add: (type) => mutate((qs) => [...qs, blankQuestion(type)]),
+    remove: (id) => mutate((qs) => qs.filter((q) => q.tempId !== id)),
+    duplicate: (id) => mutate((qs) => {
+      const i = qs.findIndex((q) => q.tempId === id);
+      if (i < 0) return qs;
+      const copy = { ...structuredClone(qs[i]), tempId: crypto.randomUUID() };
+      return [...qs.slice(0, i + 1), copy, ...qs.slice(i + 1)];
+    }),
+    move: (from, to) => mutate((qs) => {
+      if (to < 0 || to >= qs.length) return qs;
+      const next = [...qs]; const [m] = next.splice(from, 1); next.splice(to, 0, m); return next;
+    }),
+    patch: (id, p) => mapQ(id, (q) => ({ ...q, ...p })),
+    setType: (id, type) => mapQ(id, (q) => ({
+      ...blankQuestion(type), tempId: q.tempId, prompt: q.prompt, points: q.points,
+    })),
+    setOption: (id, idx, text) => mapQ(id, (q) => {
+      const options = [...(q.options ?? [])];
+      const old = options[idx]; options[idx] = text;
+      const answers = q.answers[0] === old && old !== "" ? [text] : q.answers; // keep key in sync
+      return { ...q, options, answers };
+    }),
+    addOption: (id) => mapQ(id, (q) =>
+      (q.options?.length ?? 0) >= 6 ? q : { ...q, options: [...(q.options ?? []), ""] }),
+    removeOption: (id, idx) => mapQ(id, (q) => {
+      const options = [...(q.options ?? [])];
+      if (options.length <= 2) return q;
+      const [removed] = options.splice(idx, 1);
+      const wasKey = q.answers[0] === removed;
+      return { ...q, options, answers: wasKey ? [] : q.answers, confirmed: wasKey ? false : q.confirmed };
+    }),
+    setAnswers: (id, answers) => mapQ(id, (q) => ({
+      ...q, answers, answerSource: "provided", confirmed: answers.length > 0,
+    })),
+    setConfirmed: (id, v) => mapQ(id, (q) => ({ ...q, confirmed: v })),
+    confirmAllProvided: () => mutate((qs) => qs.map((q) =>
+      q.answerSource === "provided" && q.answers.length > 0 ? { ...q, confirmed: true } : q)),
+    markSaved: (version, revision) => set({ version, savedRevision: revision }),
+  };
+});
+Design rules baked in here:
+
+Choosing an answer yourself counts as confirming it, and it switches the source to provided.
+"Confirm all provided answers" only touches answers that came from the CSV or the teacher. AI-guessed ones still need an individual click. This is the safety property from the plan.
+Renaming an option keeps the answer key pointing at it, and removing the correct option clears the key and un-confirms it.
+Changing the question type resets options and answers, but keeps the prompt and points.
+4. Autosave: src/hooks/use-autosave.ts
+ts
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { saveDraft } from "@/app/actions/exam";
+import { useDraftStore } from "./use-draft-store";
+
+export type SaveStatus = "saved" | "dirty" | "saving" | "error" | "conflict" | "locked";
+
+export function useAutosave(examId: string) {
+  const [status, setStatus] = useState<SaveStatus>("saved");
+  const statusRef = useRef(status); statusRef.current = status;
+  const inFlight = useRef<Promise<void> | null>(null);
+
+  const save = useCallback(async () => {
+    if (inFlight.current) return inFlight.current;
+    inFlight.current = (async () => {
+      setStatus("saving");
+      const { questions, version, revision } = useDraftStore.getState();
+      try {
+        const res = await saveDraft(examId, version, questions);
+        if (res.ok) {
+          useDraftStore.getState().markSaved(res.version, revision);
+          setStatus(useDraftStore.getState().revision === revision ? "saved" : "dirty");
+        } else {
+          setStatus(res.code === "CONFLICT" ? "conflict" : res.code === "LOCKED" ? "locked" : "error");
+        }
+      } catch { setStatus("error"); }
+      finally { inFlight.current = null; }
+    })();
+    return inFlight.current;
+  }, [examId]);
+
+  const revision = useDraftStore((s) => s.revision);
+  const savedRevision = useDraftStore((s) => s.savedRevision);
+
+  useEffect(() => {
+    if (revision === savedRevision) return;
+    if (statusRef.current === "conflict" || statusRef.current === "locked") return;
+    if (statusRef.current !== "saving") setStatus("dirty");
+    const t = setTimeout(save, 1500);
+    return () => clearTimeout(t);
+  }, [revision, savedRevision, save]);
+
+  useEffect(() => {   // warn before leaving with unsaved edits
+    const h = (e: BeforeUnloadEvent) => {
+      const s = useDraftStore.getState();
+      if (s.revision !== s.savedRevision) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, []);
+
+  // used by Publish: save until nothing is pending
+  const flush = useCallback(async () => {
+    for (let i = 0; i < 3; i++) {
+      await save();
+      const s = useDraftStore.getState();
+      if (s.revision === s.savedRevision) return true;
+    }
+    return false;
+  }, [save]);
+
+  return { status, save, flush };
+}
+Conflict dialog: when status is conflict, show a blocking AlertDialog with two buttons. Load latest discards local edits and reloads the page. Overwrite with mine calls getDraftVersion(examId), sets that version in the store, and saves again. Autosave stays paused while the dialog is open. For locked, show a banner: "This exam is published and can't be edited."
+
+5. The Questions page and Draft Studio UI
+Page (/teacher/exams/[examId]/questions, server component): calls getOwnedExam, loads the questions ordered by orderIndex, maps them into DraftQuestion (using each row's id as tempId and Number(points)), and renders <DraftStudio exam initialQuestions initialVersion />. If exam.status !== "draft", render a read-only summary with a "published, can't be edited" banner instead.
+
+DraftStudio (client): calls init once from the props, and shows a Skeleton until hydrated is true. Layout, top to bottom:
+
+Sticky header: exam title, a SaveIndicator ("Saved", "Saving…", "Unsaved changes", or an error with a Retry button), a Confirm all provided answers button, and the Publish button.
+Import card (collapsible): the CsvUploader from Milestone 3, now calling useDraftStore.load(...). There's a slot for the PDF/Word uploader in Milestone 5.
+Summary strip: total questions, total points, and counts of confirmed, needs-review, and missing answers.
+Sortable list of QuestionCards, then an Add question DropdownMenu (Multiple choice, True/False, Identification, Essay).
+Drag to reorder: use @dnd-kit/core and @dnd-kit/sortable. Check that your installed versions support React 19, since dnd-kit has been mid-transition to a newer package. Wire it with a pointer sensor and a keyboard sensor:
+
+tsx
+<DndContext sensors={sensors} onDragEnd={({ active, over }) => {
+  if (!over || active.id === over.id) return;
+  const from = qs.findIndex(q => q.tempId === active.id);
+  const to = qs.findIndex(q => q.tempId === over.id);
+  move(from, to);
+}}>
+  <SortableContext items={qs.map(q => q.tempId)} strategy={verticalListSortingStrategy}>
+    {qs.map(q => <QuestionCard key={q.tempId} q={q} />)}
+  </SortableContext>
+</DndContext>
+Also give each card Move up / Move down items in its DropdownMenu, since dragging is awkward on touch screens and for keyboard-only users.
+
+QuestionCard behavior:
+
+Part	Behavior
+Header	Drag handle, question number, type Select, points Input, status badge, actions menu (duplicate, move up/down, delete with confirm Dialog)
+Prompt	Textarea, auto-growing
+Multiple choice	A RadioGroup where each option row has the radio (the correct answer), a text Input, and a remove button. "Add option" up to 6, minimum 2.
+True / False	A two-option RadioGroup
+Identification	An input where pressing Enter adds a removable Badge per accepted answer
+Essay	Note: "Graded manually, no answer key needed"
+Footer	Confirm answer toggle, disabled until an answer exists. Hidden for essays.
+Validation	Run publishableQuestionSchema.safeParse(q) in a useMemo and show the first issue as small red text under the card once the teacher has touched it or tried to publish
+Status badge logic:
+
+essay gives a neutral Manual grading badge.
+answers is empty gives a red Missing answer badge.
+answerSource === "ai_inferred" and not confirmed gives an amber AI-guessed, verify badge.
+provided and not confirmed gives a blue Needs confirmation badge.
+Confirmed gives a green Confirmed badge.
+For long prompts, wrap the card in React.memo and update the store per field with patch, so typing in one card doesn't re-render fifty others.
+
+6. Publish gate
+PublishDialog (Dialog) computes a live checklist from the store, so the teacher sees what's blocking before clicking:
+
+At least one question.
+Every non-essay question has a key and is confirmed (with "jump to first problem" links that scroll to the card).
+Every question passes publishableQuestionSchema.
+Read-only summary: duration, shuffle settings, total points, schedule (or "No schedule set").
+The Publish button is disabled until all checks pass. On click:
+
+await flush(). If it returns false, show "Couldn't save your latest changes" and stop.
+Call publishExam(examId).
+If it returns issues, list them in the dialog. This can happen even when the client checks pass, and the server is the authority.
+On success, toast, clear the store, and redirect to /teacher.
+Unpublishing is left out on purpose. Once students can start sessions (milestone 6), reopening the answer key would be an integrity risk. We'll decide that rule when sessions exist.
+
+7. Tests and "done when"
+Store unit tests (Vitest):
+
+Renaming the correct option keeps answers in sync, and removing it clears the answer and un-confirms it.
+setType resets options and answers but keeps prompt and points.
+move and remove renumber order correctly.
+confirmAllProvided does not confirm ai_inferred questions or questions with no answer.
+publishableQuestionSchema rejects: blank prompt, MC with duplicate options, MC answer not in options, unconfirmed non-essay, and accepts a confirmed essay with no answer.
+Manual checks:
+
+Add each question type manually, edit it, refresh the page, and everything is still there.
+Load the CSV from Milestone 3, then refresh, and it persists.
+Open the same exam in two tabs, edit in both, and the second tab to save gets the conflict dialog.
+Reorder by drag and by the menu, and the order survives a refresh.
+Publish is blocked until the checklist is green, and the server rejects a hand-crafted publish call against an incomplete exam.
+After publishing, calling saveDraft from the console returns LOCKED, and the page shows the read-only view.
+A different teacher opening or saving to this exam's id is denied (both the page and the server actions).
+Typing quickly in a card produces one save per pause, not one per keystroke.
+Next is milestone 5, the PDF and Word import: the upload endpoint, the extraction call with schema-validated output, the import progress UI, the split-screen source preview, and the per-teacher import quota using the import_usage table from Milestone 2.
+
+Updated memory
+Milestone 6 is the student side: joining an exam, the pre-flight check, the timed runner with offline-safe autosave, and server-side grading. It also needs a small teacher view, because essays and identification answers can't be fully auto-graded.
+
+Scope split for the milestones after this one, so nothing gets built twice:
+
+M6 (this one): runner core, timer, sync, grading, minimal results.
+M7: integrity events (tab switch, fullscreen exit, paste) and the teacher review page.
+M8: live proctor grid, warn/pause/force-submit, and device locking.
+M9: camera vision and violation snapshots.
+0. Decisions I made (say so if you want any changed)
+Access is by join code. You said any user can use the prototype and I haven't built classes or enrollments, so publishing generates a 6-character code. A student enters it to see the exam. A student's session is their enrollment.
+The server owns time. Each session stores a deadline_at. The client timer is display only.
+The layout is persisted. Shuffled question and option order is generated once at start and saved, so a refresh or crash never reshuffles.
+Students never receive answer-key fields. That includes aiNote, confidence, and warnings, because the AI note literally explains the answer.
+Camera consent gets built now, even though camera analysis comes in M9, so consent is on record before any camera is ever opened.
+1. Database
+Add to exams, then create the two tables:
+
+ts
+// exams additions
+accessCode: varchar("access_code", { length: 8 }).unique(),
+requireCamera: boolean("require_camera").notNull().default(false),
+showScoreOnSubmit: boolean("show_score_on_submit").notNull().default(false),
+
+export type Layout = { order: string[]; options: Record<string, number[]> };
+export const sessionStatus = pgEnum("session_status", ["in_progress", "submitted"]);
+
+export const examSessions = pgTable("exam_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  examId: uuid("exam_id").notNull().references(() => exams.id, { onDelete: "cascade" }),
+  studentId: text("student_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  attemptNo: integer("attempt_no").notNull().default(1),
+  status: sessionStatus("status").notNull().default("in_progress"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  deadlineAt: timestamp("deadline_at", { withTimezone: true }).notNull(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  submitReason: text("submit_reason"),                  // student | timeout | (teacher, M8)
+  consentAt: timestamp("consent_at", { withTimezone: true }),
+  consentVersion: text("consent_version"),
+  layout: jsonb("layout").$type<Layout>().notNull(),
+  score: numeric("score", { precision: 6, scale: 2 }),
+  maxScore: numeric("max_score", { precision: 6, scale: 2 }),
+  gradedAt: timestamp("graded_at", { withTimezone: true }),
+  fullyGraded: boolean("fully_graded").notNull().default(false),
+}, (t) => [
+  unique().on(t.examId, t.studentId, t.attemptNo),
+  index("idx_sessions_exam").on(t.examId),
+]);
+
+export const studentAnswers = pgTable("student_answers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sessionId: uuid("session_id").notNull().references(() => examSessions.id, { onDelete: "cascade" }),
+  questionId: uuid("question_id").notNull().references(() => questions.id, { onDelete: "cascade" }),
+  answerText: text("answer_text"),
+  clientTs: bigint("client_ts", { mode: "number" }).notNull().default(0),
+  isCorrect: boolean("is_correct"),
+  pointsAwarded: numeric("points_awarded", { precision: 5, scale: 2 }),
+  manualGrade: boolean("manual_grade").notNull().default(false),   // teacher-set, never overwritten by auto-grading
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique().on(t.sessionId, t.questionId)]);
+clientTs lets the server ignore an older write that arrives late (typical after a reconnect). For multiple choice, the stored answer is the chosen option's text, which stays correct however the options were shuffled.
+
+Also add requireCamera and showScoreOnSubmit as two Switch fields on the wizard's step 1 form and in examDetailsSchema.
+
+2. Availability, codes, and the publish patch
+src/lib/exam/availability.ts (no "use server"):
+
+ts
+export function availability(e: { status: string; scheduledStart: Date | null; scheduledEnd: Date | null }, now = new Date()) {
+  if (e.status !== "published") return e.status === "completed" || e.status === "archived" ? "closed" : "unpublished";
+  if (e.scheduledStart && now < e.scheduledStart) return "not_yet";
+  if (e.scheduledEnd && now > e.scheduledEnd) return "ended";
+  return "open";
+}
+Access code generator:
+
+ts
+import { randomInt } from "node:crypto";
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";           // no 0/O/1/I
+export const newAccessCode = () => Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
+Patch publishExam (Milestone 4) to set the code, retrying on a unique-constraint clash (Postgres error 23505):
+
+ts
+for (let i = 0; i < 5; i++) {
+  try {
+    await db.update(exams).set({ status: "published", accessCode: newAccessCode() })
+      .where(and(eq(exams.id, examId), eq(exams.status, "draft")));
+    return { ok: true } as const;
+  } catch (e: any) { if (e?.code !== "23505") throw e; }
+}
+return { ok: false, issues: ["Couldn't generate an access code, try again"] } as const;
+Six characters from 32 symbols is about a billion combinations, but still rate-limit lookups (below), because the code is the only gate.
+
+3. Building the paper: src/lib/exam/paper.ts
+Your imported exams are structured: directions, case studies, and 15 cloze blanks sharing one passage. Naive shuffling would break them, so:
+
+Questions sharing a passage stay together as one unit.
+Shuffling happens only within a section (consecutive questions with the same directions). Sections keep their order.
+Options aren't shuffled when they refer to each other by position or as a set, such as "Wala sa nabanggit" or "A at B". Your AP 9 #20 has one, so a shuffled "none of the above" would be wrong.
+ts
+import { randomInt } from "node:crypto";
+import type { Layout } from "@/lib/db/schema";
+
+const ANCHOR = /(all|none|both) of the above|wala sa nabanggit|lahat ng nabanggit|parehong|\b[A-F]\s*(and|at|&|,)\s*[A-F]\b/i;
+export const keepsOptionOrder = (opts: string[]) => opts.some((o) => ANCHOR.test(o));
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = randomInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+export function makeLayout(exam: { shuffleQuestions: boolean; shuffleOptions: boolean }, qs: QuestionRow[]): Layout {
+  const units: QuestionRow[][] = [];
+  for (const q of qs) {
+    const last = units.at(-1);
+    if (q.context && last && last[0].context === q.context) last.push(q); else units.push([q]);
+  }
+  const sections: QuestionRow[][][] = [];
+  for (const u of units) {
+    const last = sections.at(-1);
+    if (last && (last[0][0].instructions ?? "") === (u[0].instructions ?? "")) last.push(u); else sections.push([u]);
+  }
+  const order = sections.flatMap((s) => (exam.shuffleQuestions ? shuffle(s) : s).flat()).map((q) => q.id);
+
+  const options: Record<string, number[]> = {};
+  for (const q of qs) if (q.type === "multiple_choice" && q.options) {
+    const idx = q.options.map((_, i) => i);
+    options[q.id] = exam.shuffleOptions && !keepsOptionOrder(q.options) ? shuffle(idx) : idx;
+  }
+  return { order, options };
+}
+
+export type StudentQuestion = {
+  id: string; number: number; type: "multiple_choice" | "true_false" | "identification" | "essay";
+  prompt: string; options: string[] | null; points: number;
+  context: string | null; instructions: string | null; underlined: string | null;
+};
+
+// explicit allow-list: never spread the DB row into the response
+export function buildPaper(qs: QuestionRow[], layout: Layout): StudentQuestion[] {
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  return layout.order.flatMap((id, i) => {
+    const q = byId.get(id);
+    if (!q) return [];
+    const perm = layout.options[id];
+    return [{
+      id: q.id, number: i + 1, type: q.type, prompt: q.prompt,
+      options: q.options && perm ? perm.map((k) => q.options![k]) : null,
+      points: Number(q.points), context: q.context, instructions: q.instructions, underlined: q.underlined,
+    }];
+  });
+}
+Question numbers shown to students follow the shuffled order, so shuffling doesn't leak the original numbering.
+
+4. Server actions: src/app/actions/session.ts ("use server")
+Helpers (ownSession, finalizeSession, gradeSession, rateLimit) live in normal modules under src/lib/exam/. rateLimit(key, max, windowSec) is the same helper you added for imports.
+
+ts
+"use server";
+const GRACE_MS = 10_000;          // network slack after the deadline
+const CONSENT_VERSION = "2026-09";
+const FALLBACK = { ok: false, code: "UNAVAILABLE" } as const;
+
+export async function lookupExam(rawCode: string) {
+  const { user } = await requireRole(["student"]);
+  if (!(await rateLimit(`lookup:${user.id}`, 10, 60))) return { ok: false, reason: "rate_limited" } as const;
+  const exam = await db.query.exams.findFirst({ where: eq(exams.accessCode, rawCode.trim().toUpperCase()) });
+  const state = exam ? availability(exam) : "not_found";
+  if (!exam || state !== "open") return { ok: false, reason: state } as const;   // not_found | not_yet | ended | closed
+  return { ok: true, examId: exam.id, title: exam.title,
+           durationMinutes: exam.durationMinutes, requireCamera: exam.requireCamera } as const;
+}
+
+export async function startSession(examId: string, consent: boolean) {
+  const { user } = await requireRole(["student"]);
+  const exam = await db.query.exams.findFirst({ where: eq(exams.id, examId) });
+  if (!exam || availability(exam) !== "open") return FALLBACK;
+  if (exam.requireCamera && !consent) return { ok: false, code: "CONSENT_REQUIRED" } as const;
+
+  const existing = await findSession(examId, user.id);
+  if (existing) return existing.status === "submitted"
+    ? ({ ok: false, code: "ALREADY_SUBMITTED" } as const)
+    : ({ ok: true, sessionId: existing.id } as const);                          // resume
+
+  const qs = await db.select().from(questions).where(eq(questions.examId, examId)).orderBy(asc(questions.orderIndex));
+  if (!qs.length) return { ok: false, code: "EMPTY" } as const;
+
+  const now = new Date();
+  const byDuration = new Date(now.getTime() + exam.durationMinutes * 60_000);
+  const deadline = exam.scheduledEnd && exam.scheduledEnd < byDuration ? exam.scheduledEnd : byDuration;
+
+  const [row] = await db.insert(examSessions).values({
+    examId, studentId: user.id, deadlineAt: deadline, layout: makeLayout(exam, qs),
+    consentAt: consent ? now : null, consentVersion: consent ? CONSENT_VERSION : null,
+  }).onConflictDoNothing().returning({ id: examSessions.id });
+
+  const id = row?.id ?? (await findSession(examId, user.id))!.id;               // lost a double-click race: resume
+  return { ok: true, sessionId: id } as const;
+}
+
+export async function getPaper(sessionId: string) {
+  const { user } = await requireRole(["student"]);
+  let s = await ownSession(sessionId, user.id);
+  s = await finalizeIfExpired(s);
+  if (s.status === "submitted") return { ok: false, code: "SUBMITTED" } as const;
+
+  const qs = await db.select().from(questions).where(eq(questions.examId, s.examId));
+  const saved = await db.select({ questionId: studentAnswers.questionId, text: studentAnswers.answerText, clientTs: studentAnswers.clientTs })
+    .from(studentAnswers).where(eq(studentAnswers.sessionId, sessionId));
+  const exam = await db.query.exams.findFirst({ where: eq(exams.id, s.examId) });
+  return { ok: true, title: exam!.title, questions: buildPaper(qs, s.layout), saved,
+           deadlineAt: s.deadlineAt.toISOString(), serverTime: new Date().toISOString() } as const;
+}
+
+const batchSchema = z.array(z.object({
+  questionId: z.string().uuid(), text: z.string().max(20_000), clientTs: z.number().int().nonnegative(),
+})).max(100);
+
+async function upsertAnswers(s: SessionRow, input: unknown) {
+  const parsed = batchSchema.safeParse(input);
+  if (!parsed.success) return false;
+  const types = await questionTypes(s.examId);                                   // Map<id, type>
+  const rows = parsed.data.flatMap((a) => {
+    const t = types.get(a.questionId);
+    if (!t) return [];                                                            // not in this exam
+    return [{ sessionId: s.id, questionId: a.questionId, clientTs: a.clientTs,
+              answerText: a.text.slice(0, t === "essay" ? 20_000 : 500) }];
+  });
+  if (rows.length) await db.insert(studentAnswers).values(rows).onConflictDoUpdate({
+    target: [studentAnswers.sessionId, studentAnswers.questionId],
+    set: { answerText: sql`excluded.answer_text`, clientTs: sql`excluded.client_ts`, updatedAt: sql`now()` },
+    setWhere: sql`excluded.client_ts > ${studentAnswers.clientTs}`,              // stale writes lose
+  });
+  return true;
+}
+
+export async function saveAnswers(sessionId: string, input: unknown) {   // also serves as the clock heartbeat with []
+  const { user } = await requireRole(["student"]);
+  const s = await ownSession(sessionId, user.id);
+  if (s.status !== "in_progress") return { ok: false, code: "SUBMITTED" } as const;
+  if (Date.now() > s.deadlineAt.getTime() + GRACE_MS) {
+    await finalizeSession(s.id, "timeout");
+    return { ok: false, code: "EXPIRED" } as const;
+  }
+  if (!(await upsertAnswers(s, input))) return { ok: false, code: "INVALID" } as const;
+  return { ok: true, serverTime: new Date().toISOString(), deadlineAt: s.deadlineAt.toISOString() } as const;
+}
+
+export async function submitSession(sessionId: string, finalAnswers?: unknown) {
+  const { user } = await requireRole(["student"]);
+  const s = await ownSession(sessionId, user.id);
+  const late = Date.now() > s.deadlineAt.getTime();
+  if (s.status === "in_progress") {
+    if (finalAnswers && Date.now() <= s.deadlineAt.getTime() + GRACE_MS) await upsertAnswers(s, finalAnswers);
+    await finalizeSession(s.id, late ? "timeout" : "student");
+  }
+  const fresh = await ownSession(sessionId, user.id);
+  const exam = await db.query.exams.findFirst({ where: eq(exams.id, s.examId) });
+  return { ok: true,
+    score: exam?.showScoreOnSubmit && fresh.fullyGraded ? { score: Number(fresh.score), max: Number(fresh.maxScore) } : null } as const;
+}
+Details that matter:
+
+ownSession returns 404 for anyone but the owner, so students can't probe each other's session ids.
+Submit is idempotent. finalizeSession uses an UPDATE … WHERE status='in_progress' RETURNING, so a double-click or a timer-plus-click race finalizes once.
+Timeout submits are stamped with the deadline, not the moment the server noticed: submittedAt = LEAST(now(), deadline_at).
+Lazy finalization (finalizeIfExpired) runs on getPaper, saveAnswers, and when the teacher opens the results page. Sessions whose owner closed the tab therefore still get graded without a background job.
+src/lib/exam/finalize.ts:
+
+ts
+export async function finalizeSession(sessionId: string, reason: "student" | "timeout") {
+  await db.update(examSessions).set({
+    status: "submitted", submitReason: reason,
+    submittedAt: reason === "timeout" ? sql`LEAST(now(), ${examSessions.deadlineAt})` : sql`now()`,
+  }).where(and(eq(examSessions.id, sessionId), eq(examSessions.status, "in_progress")));
+  await gradeSession(sessionId);          // idempotent, safe even if another request won the race
+}
+export async function finalizeIfExpired(s: SessionRow) {
+  if (s.status === "in_progress" && Date.now() > s.deadlineAt.getTime() + 10_000) {
+    await finalizeSession(s.id, "timeout");
+    return (await db.query.examSessions.findFirst({ where: eq(examSessions.id, s.id) }))!;
+  }
+  return s;
+}
+5. Grading: src/lib/exam/grade.ts
+ts
+export const normalize = (s: string) =>
+  s.normalize("NFKC").toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "")
+   .replace(/[.'’"“”,;:!?()]/g, "")          // drop: "R.A." -> "ra"
+   .replace(/[-_/]+/g, " ")                  // treat: "top-down" == "top down"
+   .replace(/\s+/g, " ").trim();
+
+export function isCorrect(q: { type: string; answers: string[] }, text: string | null): boolean {
+  if (!text?.trim()) return false;
+  const t = normalize(text);
+  if (q.type === "multiple_choice" || q.type === "true_false") return normalize(q.answers[0] ?? "") === t;
+  return q.answers.some((a) => normalize(a) === t);           // identification (incl. "T"/"Tama" for modified T/F)
+}
+
+export async function gradeSession(sessionId: string) {
+  const s = await db.query.examSessions.findFirst({ where: eq(examSessions.id, sessionId) });
+  if (!s || s.status !== "submitted") return;
+  const qs = await db.select().from(questions).where(eq(questions.examId, s.examId));
+  const ans = await db.select().from(studentAnswers).where(eq(studentAnswers.sessionId, sessionId));
+  const byQ = new Map(ans.map((a) => [a.questionId, a]));
+
+  let score = 0, max = 0, pending = false;
+  const autoRows: (typeof studentAnswers.$inferInsert)[] = [];
+  for (const q of qs) {
+    const pts = Number(q.points); max += pts;
+    const a = byQ.get(q.id);
+    if (a?.manualGrade) { score += Number(a.pointsAwarded ?? 0); continue; }   // teacher decision wins
+    if (q.type === "essay") { pending = true; continue; }
+    const ok = isCorrect({ type: q.type, answers: q.answers }, a?.answerText ?? null);
+    if (ok) score += pts;
+    autoRows.push({ sessionId, questionId: q.id, answerText: a?.answerText ?? null,
+                    isCorrect: ok, pointsAwarded: String(ok ? pts : 0) });
+  }
+  if (autoRows.length) await db.insert(studentAnswers).values(autoRows).onConflictDoUpdate({
+    target: [studentAnswers.sessionId, studentAnswers.questionId],
+    set: { isCorrect: sql`excluded.is_correct`, pointsAwarded: sql`excluded.points_awarded` },
+    setWhere: sql`${studentAnswers.manualGrade} = false`,
+  });
+  await db.update(examSessions).set({ score: String(score), maxScore: String(max), gradedAt: sql`now()`, fullyGraded: !pending })
+    .where(eq(examSessions.id, sessionId));
+}
+gradeSession can be re-run safely, so if a write fails midway, the results page calls it for any submitted session with gradedAt null. Every question gets an answer row (including blanks), so the teacher's review page shows a complete list.
+
+Known limitation from the import milestone: items like 31-33 ("identify three provisions, any order") are graded as three separate questions. Until a grouped rule exists, teachers can use the override in section 8.
+
+6. Client: sync engine, timer, fullscreen
+Dexie (src/lib/exam/local-db.ts):
+
+ts
+import Dexie, { type Table } from "dexie";
+export type LocalAnswer = { sessionId: string; questionId: string; text: string; clientTs: number; synced: 0 | 1 };
+class ExamDB extends Dexie {
+  answers!: Table<LocalAnswer, [string, string]>;
+  papers!: Table<{ sessionId: string; payload: unknown }, string>;     // cached paper so a reload works offline
+  constructor() {
+    super("sepe-exam");
+    this.version(1).stores({ answers: "[sessionId+questionId], [sessionId+synced]", papers: "sessionId" });
+  }
+}
+export const localDb = new ExamDB();
+Sync engine (useAnswerSync(sessionId)): the browser copy is written first and is the source of truth while the student works.
+
+ts
+export function useAnswerSync(sessionId: string, onFinished: () => void) {
+  const [status, setStatus] = useState<"saved" | "saving" | "offline">("saved");
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const busy = useRef(false);
+  const backoff = useRef(2000);
+
+  const flush = useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true; setStatus("saving");
+    try {
+      while (true) {
+        const pending = await localDb.answers.where("[sessionId+synced]").equals([sessionId, 0]).limit(100).toArray();
+        if (!pending.length) break;
+        const res = await saveAnswers(sessionId, pending.map(({ questionId, text, clientTs }) => ({ questionId, text, clientTs })));
+        if (!res.ok) { if (res.code === "EXPIRED" || res.code === "SUBMITTED") return onFinished(); throw new Error(res.code); }
+        await localDb.transaction("rw", localDb.answers, async () => {
+          for (const p of pending) {                                   // mark synced only if not edited meanwhile
+            const cur = await localDb.answers.get([p.sessionId, p.questionId]);
+            if (cur && cur.clientTs === p.clientTs) await localDb.answers.update([p.sessionId, p.questionId], { synced: 1 });
+          }
+        });
+      }
+      backoff.current = 2000; setStatus("saved");
+    } catch {
+      setStatus("offline");
+      timer.current = setTimeout(flush, backoff.current);
+      backoff.current = Math.min(backoff.current * 2, 30_000);
+    } finally { busy.current = false; }
+  }, [sessionId, onFinished]);
+
+  const setAnswer = useCallback(async (questionId: string, text: string, immediate = false) => {
+    await localDb.answers.put({ sessionId, questionId, text, clientTs: Date.now(), synced: 0 });
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, immediate ? 150 : 900);          // radio clicks: immediate; typing: debounced
+  }, [sessionId, flush]);
+
+  useEffect(() => {
+    const on = () => flush();
+    const vis = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("online", on); document.addEventListener("visibilitychange", vis);
+    return () => { window.removeEventListener("online", on); document.removeEventListener("visibilitychange", vis); };
+  }, [flush]);
+
+  const unsynced = useLiveQuery(() => localDb.answers.where("[sessionId+synced]").equals([sessionId, 0]).count(), [sessionId], 0);
+  return { status, unsynced, setAnswer, flush };
+}
+(useLiveQuery is from dexie-react-hooks.) Submit sends all unsynced answers along with the call, so submitting works even when the last background sync failed:
+
+ts
+const final = await localDb.answers.where("[sessionId+synced]").equals([sessionId, 0]).toArray();
+await submitSession(sessionId, final.map(({ questionId, text, clientTs }) => ({ questionId, text, clientTs })));
+On load, merge the server's saved answers with Dexie by clientTs, so the newer copy wins.
+
+Timer. Don't compute time from Date.now(), since students can change the system clock. Anchor to the server and count with the monotonic clock:
+
+ts
+// at load and on every successful sync/heartbeat:
+anchor = { remainingMs: Date.parse(deadlineAt) - Date.parse(serverTime), perf: performance.now() };
+remaining = () => anchor.remainingMs - (performance.now() - anchor.perf);
+Re-anchor every 60 seconds by calling saveAnswers(sessionId, []), which returns serverTime and doubles as a heartbeat, and re-anchor when the tab regains focus (sleeping laptops). At zero, flush and call submitSession. Toast warnings at 10, 5, and 1 minute. The server enforces the real deadline regardless.
+
+Fullscreen. It must be requested inside the click handler ("Start exam") because browsers require a user gesture:
+
+ts
+await document.documentElement.requestFullscreen({ navigationUI: "hide" });   // first
+const res = await startSession(examId, consent);
+if (!res.ok) await document.exitFullscreen();
+In M6, if fullscreen is exited during the exam, show a blocking overlay with a "Return to fullscreen" button. Logging and the countdown-to-lock come in M7.
+
+7. Student screens
+Route	What it does
+/student	"Enter exam code" card (uppercases input, shows friendly messages for not_found, not_yet, ended, closed, rate_limited), plus "My exams" list with Resume and Submitted states
+/student/exams/[examId]/check	Pre-flight: browser support (Fullscreen API, IndexedDB, crypto.randomUUID), online, fullscreen test, camera permission and live preview only if requireCamera (stop the tracks afterward), then the consent panel and Start
+/student/sessions/[sessionId]	The runner
+/student/sessions/[sessionId]/done	"Submitted" confirmation. Shows the score only if the teacher enabled it and grading is complete. Never shows correct answers.
+iPhone Safari doesn't support the Fullscreen API for pages, so pre-flight will fail there. Decide whether to block phones or allow them with a warning. I'd block for now, with a clear "use a laptop or Android device with Chrome or Edge" message.
+
+Consent panel (only when the camera is required, but record the version either way). It should state: the purpose (exam integrity), what is collected (an event log, and camera images only when a violation is flagged, with face detection running on the student's device), who can see it (the teacher and admins), how long it's kept (30 days per your design), and who to contact. Have your school's privacy officer review the wording, since I'm not able to give legal advice.
+
+Runner layout:
+
+Top bar: exam title, timer, SyncIndicator ("All answers saved" / "Saving…" / "Offline: N unsaved answers, reconnect before time runs out"), Submit.
+Pages are built from the paper: consecutive questions with the same instructions and context form one page (max 15 per page), and the directions and passage appear once at the top, the way the paper exam does. CSV exams with no directions page in chunks of 10.
+Inputs by type: MC as a RadioGroup, true/false as two radios, identification as a text Input (autocomplete, spellcheck, and autocapitalize off), essay as a Textarea with a word count.
+UnderlinedPrompt: renders the prompt with the first match of underlined in <u>, using React text nodes, never raw HTML.
+Navigator: grid of numbered buttons (answered, flagged, current). "Flag for review" is stored locally.
+Submit dialog: lists unanswered and flagged counts, with a final confirm. Warns if unsynced > 0 while offline.
+Offline banner whenever navigator.onLine is false or sync status is offline.
+8. Teacher minimum
+Without this, essays could never be graded and the code would never be visible.
+
+/teacher/exams/[examId]: the access code with a copy button and share link, status (a "Stop new entries" button that moves the exam to completed; running sessions continue until their own deadline), and a sessions table (student name, status, started, submitted, score / max, "needs grading" badge). On load it finalizes any expired sessions and grades any submitted ones with gradedAt null.
+/teacher/exams/[examId]/sessions/[sessionId]: each question with the student's answer, the accepted answers, the auto mark, and a points input. Essays start ungraded.
+One action covers essays and overrides, which is useful for Filipino short answers with valid variants:
+ts
+export async function setAnswerPoints(sessionId: string, questionId: string, points: number) {
+  const { user } = await requireRole(["teacher", "admin"]);
+  const s = await db.query.examSessions.findFirst({ where: eq(examSessions.id, sessionId) });
+  if (!s) notFound();
+  await getOwnedExam(s.examId);                                            // teacher must own the exam
+  const q = await db.query.questions.findFirst({ where: and(eq(questions.id, questionId), eq(questions.examId, s.examId)) });
+  if (!q || !(points >= 0 && points <= Number(q.points))) return { ok: false } as const;
+  await db.insert(studentAnswers).values({ sessionId, questionId, manualGrade: true, pointsAwarded: String(points) })
+    .onConflictDoUpdate({ target: [studentAnswers.sessionId, studentAnswers.questionId],
+      set: { manualGrade: true, pointsAwarded: String(points), isCorrect: null } });
+  await gradeSession(sessionId);                                           // recompute totals
+  return { ok: true } as const;
+}
+9. Tests and "done when"
+Unit tests:
+
+makeLayout: sections stay in original order, cloze blanks sharing a passage stay contiguous, shuffle off keeps order, each option permutation is a bijection, and an "A at B" or "Wala sa nabanggit" question keeps its option order.
+buildPaper output contains none of answers, aiNote, confidence, warnings, confirmed, answerSource, and its option order matches the layout.
+availability for every state, and deadline = the earlier of start + duration and scheduledEnd.
+normalize / isCorrect:
+Student writes	Accepted	Result
+T.	["T","Tama"]	correct
+ra 9003, R.A. 9003	["R.A. 9003"]	both correct
+Top-down approach	["top down approach"]	correct
+Mali	["Indonesia"]	wrong
+empty / spaces	anything	wrong
+Integration (against a test database): a stale clientTs doesn't overwrite a newer answer, saves after the deadline plus grace are rejected, submitting twice yields one score, and a manual grade survives a re-grade.
+Done when:
+
+A student joins with a valid code. Wrong, not-yet, ended, and closed codes give distinct clear messages, and the 11th lookup in a minute is rate-limited.
+Pre-flight blocks the start when a check fails, and consent is required when the camera is on.
+Refreshing mid-exam resumes with the same question order, the same option order, and all answers.
+Airplane-mode test: answer 10 questions offline, reconnect, and everything syncs. The banner shows the unsaved count while offline.
+Changing the computer's clock doesn't move the timer. At zero the exam submits, and further saves are rejected.
+The browser's network tab for getPaper shows no answer-key fields.
+A second student, or a teacher, can't load or save to another student's session.
+Submitting twice gives the same score. Auto-grading of a confirmed sample exam matches your manual count.
+A teacher sees the session list, grades an essay, and fullyGraded flips with the score updating.
+An exam whose scheduledEnd is 10 minutes away gives a student with a 60-minute duration a 10-minute deadline.
+Known gap, for M8: opening the same session on a second device simply resumes it, with last-write-wins by timestamp. Someone else could answer for the student on another machine. Device locking with a teacher-approval prompt is already in your original design and belongs with the proctor grid.
+
+Next is milestone 7: the integrity event layer (tab switch, window blur, fullscreen exit with the 10-second countdown, paste and shortcut logging), the exam_audit_logs table, and the teacher's review page for flagged sessions.
+
+continue on milestone 7
+
+Updated memory
+Milestone 7 adds the integrity layer: capturing events in the student's browser, storing them reliably, detecting tampering on the server, and giving teachers a fair way to review them.
+
+0. Principles and decisions
+Your original doc calls these "violations", but browser events can't prove cheating. A notification popup blurs the window, Esc exits fullscreen, and a laptop lid closing stops everything. Here is how I handled that:
+
+Log everything, judge nothing. No automatic failing, locking, or submitting. The system produces evidence and a transparent review priority, and the teacher decides.
+Server classifies severity. The client only reports what happened. It can't downgrade its own severity.
+Students are told. The consent screen lists what is recorded, and a discreet message appears after each event, so students see what a teacher will see.
+Privacy-minimal. Paste events record the pasted length, never the content, because a clipboard may hold passwords or private messages.
+Honest labels. F12 and Ctrl+Shift+I are recorded as "DevTools shortcut pressed", because browsers give no reliable way to know whether DevTools actually opened. That's why I'm dropping DEVTOOLS_ATTEMPT from the original enum.
+A tamper signal that doesn't depend on the client's honesty: the server watches for gaps in heartbeats. A cheater can disable event listeners, but stopping heartbeats is visible.
+Two new per-exam settings (add as Switch fields in wizard step 1, in an "Integrity" card, with requireCamera and showScoreOnSubmit):
+
+enforceFullscreen (default on). This also fixes the iPhone problem from M6: turn it off and phones can take the exam, with events still logged.
+restrictInput (default off). Blocks copy/cut/paste, right-click, and print/save/view-source shortcuts. The attempt is still logged.
+1. Database
+ts
+export const violationKind = pgEnum("violation_kind", [
+  "TAB_SWITCH", "WINDOW_BLUR", "FULLSCREEN_EXIT", "PASTE", "COPY_CUT", "CONTEXT_MENU",
+  "SHORTCUT_ATTEMPT", "OFFLINE", "SESSION_RESUMED", "HEARTBEAT_GAP",
+  "NO_FACE_DETECTED", "MULTIPLE_FACES", "SIDEWAYS_GAZE",          // M9
+]);
+export const severity = pgEnum("event_severity", ["info", "warning", "critical"]);
+
+export const examAuditLogs = pgTable("exam_audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sessionId: uuid("session_id").notNull().references(() => examSessions.id, { onDelete: "cascade" }),
+  clientEventId: uuid("client_event_id").notNull(),               // makes retries idempotent
+  kind: violationKind("kind").notNull(),
+  severity: severity("severity").notNull(),
+  details: jsonb("details").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+  durationMs: integer("duration_ms"),
+  clientTs: bigint("client_ts", { mode: "number" }).notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),   // server receive time
+  evidenceImageUrl: text("evidence_image_url"),                    // M9
+  reviewStatus: text("review_status").notNull().default("unreviewed"),   // unreviewed | dismissed | confirmed
+  reviewNote: text("review_note"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+}, (t) => [
+  unique().on(t.sessionId, t.clientEventId),
+  index("idx_audit_session_time").on(t.sessionId, t.occurredAt),
+]);
+
+// exam_sessions additions
+lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+lastState: jsonb("last_state").$type<{ visible: boolean; fullscreen: boolean; focused: boolean }>(),
+reviewOutcome: text("review_outcome").notNull().default("unreviewed"),   // unreviewed | cleared | concern | invalidated
+reviewNote: text("review_note"),
+reviewedBy: text("reviewed_by"),
+reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+
+// exams additions
+enforceFullscreen: boolean("enforce_fullscreen").notNull().default(true),
+restrictInput: boolean("restrict_input").notNull().default(false),
+Students have no action that updates or deletes events. The log is append-only for them. Teachers can only annotate, never delete.
+
+2. Patches to Milestone 6
+Consent is now always required, since monitoring applies to every exam: in startSession, change the check to if (!consent) return CONSENT_REQUIRED, and bump CONSENT_VERSION. The consent panel must list exactly what is recorded: leaving the exam window or tab and for how long, exiting fullscreen, paste/copy events (length only, not content), pressing developer-tool or print shortcuts, gaps in connection. And what isn't: keystrokes, screen contents, clipboard content. Have your privacy officer review the wording.
+Pre-flight fullscreen check applies only when enforceFullscreen is on.
+Replace the clock heartbeat (saveAnswers(sessionId, [])) with the heartbeat action below.
+Replace the simple fullscreen overlay with the gate in section 5.
+3. Server side
+Classification and event schema (src/lib/exam/classify.ts, no "use server"):
+
+ts
+export const CLIENT_KINDS = ["TAB_SWITCH", "WINDOW_BLUR", "FULLSCREEN_EXIT", "PASTE", "COPY_CUT",
+  "CONTEXT_MENU", "SHORTCUT_ATTEMPT", "OFFLINE", "SESSION_RESUMED"] as const;
+
+export function classify(kind: string, durationMs = 0, d: Record<string, unknown> = {}): "info" | "warning" | "critical" {
+  switch (kind) {
+    case "TAB_SWITCH":       return durationMs >= 60_000 ? "critical" : "warning";
+    case "WINDOW_BLUR":      return durationMs >= 10_000 ? "warning" : "info";
+    case "FULLSCREEN_EXIT":  return d.countdownExpired || durationMs >= 30_000 ? "critical" : "warning";
+    case "PASTE":            return Number(d.length ?? 0) >= 30 ? "warning" : "info";
+    case "SHORTCUT_ATTEMPT": return ["F12", "Ctrl+Shift+I", "Ctrl+Shift+J", "Ctrl+Shift+C", "Ctrl+U"].includes(String(d.key)) ? "warning" : "info";
+    default:                 return "info";
+  }
+}
+src/app/actions/integrity.ts ("use server"):
+
+ts
+const GRACE_MS = 10_000, GAP_MS = 150_000, MAX_EVENTS = 1500;
+
+const eventSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(CLIENT_KINDS),
+  clientTs: z.number().int().nonnegative(),
+  durationMs: z.number().int().min(0).max(6 * 3600_000).optional(),
+  details: z.record(z.string().max(30), z.union([z.string().max(60), z.number(), z.boolean(), z.null()])).optional(),
+});
+
+export async function logEvents(sessionId: string, input: unknown) {
+  const { user } = await requireRole(["student"]);
+  const s = await ownSession(sessionId, user.id);
+  if (s.status !== "in_progress" || Date.now() > s.deadlineAt.getTime() + GRACE_MS) return { ok: false, code: "CLOSED" } as const;
+
+  const parsed = z.array(eventSchema).max(50).safeParse(input);
+  if (!parsed.success) return { ok: false, code: "INVALID" } as const;
+
+  const [{ n }] = await db.select({ n: count() }).from(examAuditLogs).where(eq(examAuditLogs.sessionId, s.id));
+  const room = Math.max(0, MAX_EVENTS - n);                       // an event storm can't bloat the table
+  const rows = parsed.data.slice(0, room).map((e) => ({
+    sessionId: s.id, clientEventId: e.id, kind: e.kind, clientTs: e.clientTs,
+    durationMs: e.durationMs ?? null, details: e.details ?? {},
+    severity: classify(e.kind, e.durationMs, e.details),          // never trusted from the client
+  }));
+  if (rows.length) await db.insert(examAuditLogs).values(rows)
+    .onConflictDoNothing({ target: [examAuditLogs.sessionId, examAuditLogs.clientEventId] });
+  return { ok: true } as const;
+}
+
+export async function heartbeat(sessionId: string, state: { visible: boolean; fullscreen: boolean; focused: boolean }) {
+  const { user } = await requireRole(["student"]);
+  const s = await ownSession(sessionId, user.id);
+  if (s.status !== "in_progress") return { ok: false, code: "SUBMITTED" } as const;
+  if (Date.now() > s.deadlineAt.getTime() + GRACE_MS) { await finalizeSession(s.id, "timeout"); return { ok: false, code: "EXPIRED" } as const; }
+
+  const now = new Date();
+  const prev = s.lastHeartbeatAt ?? s.startedAt;
+  // conditional update: if two heartbeats race, only one "wins" and can log a gap
+  const won = await db.update(examSessions).set({ lastHeartbeatAt: now, lastState: state })
+    .where(and(eq(examSessions.id, s.id),
+      s.lastHeartbeatAt ? eq(examSessions.lastHeartbeatAt, s.lastHeartbeatAt) : isNull(examSessions.lastHeartbeatAt)))
+    .returning({ id: examSessions.id });
+
+  const gap = now.getTime() - prev.getTime();
+  if (won.length && gap > GAP_MS) {
+    const offline = await db.select({ id: examAuditLogs.id }).from(examAuditLogs).where(and(
+      eq(examAuditLogs.sessionId, s.id), eq(examAuditLogs.kind, "OFFLINE"),
+      gte(examAuditLogs.clientTs, prev.getTime() - 5000), lte(examAuditLogs.clientTs, now.getTime()))).limit(1);
+    await db.insert(examAuditLogs).values({
+      sessionId: s.id, clientEventId: crypto.randomUUID(), kind: "HEARTBEAT_GAP", clientTs: now.getTime(),
+      durationMs: gap, details: { explainedByOffline: offline.length > 0 },
+      severity: offline.length ? "info" : gap > 300_000 ? "critical" : "warning",
+    });
+  }
+  return { ok: true, serverTime: now.toISOString(), deadlineAt: s.deadlineAt.toISOString() } as const;
+}
+Details worth knowing:
+
+The threshold is 150 seconds, not 90, because browsers throttle timers in background tabs (roughly once a minute), and a hidden tab shouldn't look like tampering.
+Ordering on the client matters: flush queued events before sending a heartbeat. An OFFLINE event queued during a network drop then reaches the server first, so the resulting gap is correctly marked "explained by offline".
+submitSession should also accept an optional finalEvents array and insert them the same way, since the last events before submit would otherwise be lost.
+Review priority (src/lib/exam/priority.ts). These rules are visible to teachers, and dismissed events don't count:
+
+ts
+const AWAY = ["TAB_SWITCH", "WINDOW_BLUR", "FULLSCREEN_EXIT"];
+export function reviewPriority(events: { kind: string; severity: string; durationMs: number | null; reviewStatus: string }[]) {
+  const ev = events.filter((e) => e.reviewStatus !== "dismissed");
+  const n = (k: string) => ev.filter((e) => e.kind === k).length;
+  const awayMs = ev.filter((e) => AWAY.includes(e.kind)).reduce((s, e) => s + (e.durationMs ?? 0), 0);
+  const critical = ev.filter((e) => e.severity === "critical").length;
+  const bigPastes = ev.filter((e) => e.kind === "PASTE" && e.severity === "warning").length;
+  const unexplainedGaps = ev.filter((e) => e.kind === "HEARTBEAT_GAP" && e.severity !== "info").length;
+
+  const reasons: string[] = [];
+  if (critical) reasons.push(`${critical} serious event${critical > 1 ? "s" : ""}`);
+  if (n("TAB_SWITCH") >= 2) reasons.push(`${n("TAB_SWITCH")} tab switches`);
+  if (awayMs >= 30_000) reasons.push(`${Math.round(awayMs / 1000)}s away from the exam`);
+  if (bigPastes) reasons.push(`${bigPastes} large paste${bigPastes > 1 ? "s" : ""}`);
+  if (unexplainedGaps) reasons.push("connection gap not explained by network loss");
+
+  const level = critical || awayMs >= 120_000 || n("TAB_SWITCH") >= 5 || bigPastes >= 2 ? "high"
+    : n("TAB_SWITCH") >= 2 || awayMs >= 30_000 || bigPastes >= 1 || unexplainedGaps ? "medium" : "low";
+  return { level, reasons, awayMs };
+}
+It's deliberately simple and explainable: the teacher sees why a session is high, not an opaque score. The UI label is "Review priority", never "cheating likelihood".
+
+4. The browser-side monitor: src/lib/exam/integrity-monitor.ts
+ts
+export type RawEvent = { id: string; kind: string; clientTs: number; durationMs?: number; details?: Record<string, string | number | boolean | null> };
+type Opts = { emit: (e: RawEvent) => void; getQuestionId: () => string | null; restrictInput: boolean };
+
+export function startIntegrityMonitor(o: Opts) {
+  const ac = new AbortController();
+  const { signal } = ac;
+  const t0 = performance.now();
+  const settled = () => performance.now() - t0 > 2500;              // ignore fullscreen-transition noise
+  const last: Record<string, number> = {};
+  const ev = (kind: string, extra: Partial<RawEvent> = {}, minGapMs = 0) => {
+    const now = performance.now();
+    if (minGapMs && last[kind] && now - last[kind] < minGapMs) return;   // throttle repeats
+    last[kind] = now;
+    o.emit({ id: crypto.randomUUID(), kind, clientTs: Date.now(), ...extra });
+  };
+
+  // Away tracking: hidden tab vs. unfocused-but-visible window
+  let hiddenAt: number | null = null, blurAt: number | null = null;
+  document.addEventListener("visibilitychange", () => {
+    if (!settled()) return;
+    if (document.visibilityState === "hidden") hiddenAt = performance.now();
+    else if (hiddenAt !== null) {
+      ev("TAB_SWITCH", { durationMs: Math.round(performance.now() - hiddenAt) });
+      hiddenAt = null; blurAt = null;
+    }
+  }, { signal });
+  window.addEventListener("blur", () => { if (settled()) blurAt = performance.now(); }, { signal });
+  window.addEventListener("focus", () => {
+    if (blurAt !== null && hiddenAt === null) {
+      const d = Math.round(performance.now() - blurAt);
+      if (d >= 1500) ev("WINDOW_BLUR", { durationMs: d });           // short blips are ignored
+    }
+    blurAt = null;
+  }, { signal });
+
+  // Clipboard: log length only, never content
+  for (const type of ["copy", "cut", "paste"] as const) {
+    document.addEventListener(type, (e) => {
+      const length = type === "paste"
+        ? ((e as ClipboardEvent).clipboardData?.getData("text").length ?? 0)
+        : (window.getSelection()?.toString().length ?? 0);
+      ev(type === "paste" ? "PASTE" : "COPY_CUT", { details: { action: type, length, questionId: o.getQuestionId() } });
+      if (o.restrictInput) e.preventDefault();
+    }, { signal, capture: true });
+  }
+  document.addEventListener("contextmenu", (e) => {
+    ev("CONTEXT_MENU", {}, 5000);
+    if (o.restrictInput) e.preventDefault();
+  }, { signal });
+
+  // Shortcuts: log the attempt. Blocking is best-effort and only when restrictInput is on
+  const shortcut = (e: KeyboardEvent) => {
+    const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+    if (e.key === "F12") return "F12";
+    if (mod && e.shiftKey && ["i", "j", "c"].includes(k)) return `Ctrl+Shift+${k.toUpperCase()}`;
+    if (mod && k === "u") return "Ctrl+U";
+    if (mod && k === "s") return "Ctrl+S";
+    if (mod && k === "p") return "Ctrl+P";
+    return null;
+  };
+  document.addEventListener("keydown", (e) => {
+    const s = shortcut(e);
+    if (!s) return;
+    ev("SHORTCUT_ATTEMPT", { details: { key: s } }, 2000);
+    if (o.restrictInput) e.preventDefault();
+  }, { signal, capture: true });
+  document.addEventListener("keyup", (e) => {                        // PrintScreen only fires keyup on some systems
+    if (e.key === "PrintScreen") ev("SHORTCUT_ATTEMPT", { details: { key: "PrintScreen" } }, 2000);
+  }, { signal });
+  window.addEventListener("beforeprint", () => ev("SHORTCUT_ATTEMPT", { details: { key: "print" } }, 2000), { signal });
+
+  window.addEventListener("offline", () => ev("OFFLINE", { details: { online: false } }), { signal });
+  return { stop: () => ac.abort() };
+}
+Notes on what this can't do:
+
+PrintScreen and OS screenshot tools can't be prevented. They're logged where the browser reports them. F12 and DevTools can't be reliably blocked either, and a window-size heuristic for detecting an open DevTools panel is too false-positive-prone, so I left it out.
+Multiple monitors can't be detected without a permission prompt (the Window Management API). I'd leave that out of a prototype.
+Blur plus hidden fire together on a tab switch. The code turns that into a single TAB_SWITCH with a duration.
+Outbox. Add an events table to the M6 Dexie schema ("id, [sessionId+synced]"). emit writes the event to Dexie first, shows the student a discreet toast ("Leaving the exam window was recorded, 12 s"), and schedules a flush. The flush is the same pattern as answers: send up to 50 unsynced events to logEvents, mark synced only on success, back off when offline. A loop every 30 seconds does it in order: flush events, flush answers, then heartbeat with { visible, fullscreen, focused } (which also re-anchors the timer as in M6).
+
+5. Fullscreen gate
+This replaces M6's simple overlay. The 10-second countdown from your original design stays, but expiry hides the exam and blocks input rather than permanently locking the session. The timer keeps running, and the teacher decides afterward.
+
+ts
+export function useFullscreenGate(enforce: boolean, emit: (kind: string, extra: Partial<RawEvent>) => void, countdownSec = 10) {
+  const [out, setOut] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(countdownSec);
+  const outAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!enforce) return;
+    const onChange = () => {
+      if (!document.fullscreenElement) { outAt.current = performance.now(); setSecondsLeft(countdownSec); setOut(true); }
+      else if (outAt.current !== null) {
+        const ms = Math.round(performance.now() - outAt.current);
+        emit("FULLSCREEN_EXIT", { durationMs: ms, details: { countdownExpired: ms >= countdownSec * 1000 } });
+        outAt.current = null; setOut(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [enforce, emit, countdownSec]);
+
+  useEffect(() => {
+    if (!out) return;
+    const t = setInterval(() => setSecondsLeft(Math.max(0, Math.ceil(countdownSec - (performance.now() - outAt.current!) / 1000))), 250);
+    return () => clearInterval(t);
+  }, [out, countdownSec]);
+
+  return { out, locked: out && secondsLeft === 0, secondsLeft,
+           reenter: () => document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {}) };
+}
+While out (before expiry): a modal overlay with the countdown and a "Return to fullscreen" button (the re-entry needs a click).
+When locked: put the runner container in inert and hide the question content, so a windowed exam can't be read or screenshotted casually.
+On resume after a reload (a reload always exits fullscreen), show the gate immediately without penalty. Emit an info-level SESSION_RESUMED event instead of FULLSCREEN_EXIT, and reset the countdown when the student clicks back in.
+Mount the monitor and gate in the runner: useEffect(() => startIntegrityMonitor({...}).stop, [...]), and stop it on submit.
+6. Teacher review
+Exam overview (/teacher/exams/[examId]): add columns for review priority (badge), tab switches, total away time, and large pastes, sortable by priority, plus filter chips for "Needs review" and "High". Priority is computed on load from the session's events using reviewPriority.
+
+Session page, new "Integrity" tab:
+
+A summary strip: priority badge with its reasons, counts by kind, and total away time.
+A timeline with time since start, a severity badge, and a neutral description:
+Kind	Description shown
+TAB_SWITCH	"Left the exam tab for 12 s"
+WINDOW_BLUR	"Exam window lost focus for 8 s"
+FULLSCREEN_EXIT	"Exited fullscreen for 6 s (returned within countdown)" / "…did not return in time"
+PASTE	"Pasted 240 characters into Question 7 (content not recorded)"
+COPY_CUT	"Copied or cut text"
+SHORTCUT_ATTEMPT	"Pressed a developer-tools shortcut (F12)"
+HEARTBEAT_GAP	"No activity signal for 4 min 10 s" plus "explained by network loss" or "not explained"
+SESSION_RESUMED	"Exam reopened (page reloaded)"
+Per-event Dismiss (with an optional note like "student mentioned a notification popup") and Confirm, and a session-level outcome (Cleared, Concern, Invalidated) with a note. In M7 these are annotations only. They don't change scores or statuses.
+A footer line: "Integrity events for this session will be deleted on <date>." so teachers know the retention window.
+ts
+export async function reviewEvent(eventId: string, status: "dismissed" | "confirmed" | "unreviewed", note?: string) {
+  const { user } = await requireRole(["teacher", "admin"]);
+  const ev = await db.query.examAuditLogs.findFirst({ where: eq(examAuditLogs.id, eventId) });
+  if (!ev) notFound();
+  const s = await db.query.examSessions.findFirst({ where: eq(examSessions.id, ev.sessionId) });
+  await getOwnedExam(s!.examId);                                     // teacher must own the exam
+  await db.update(examAuditLogs).set({ reviewStatus: status, reviewNote: note?.slice(0, 500) ?? null,
+    reviewedBy: user.id, reviewedAt: new Date() }).where(eq(examAuditLogs.id, eventId));
+}
+Write a matching setSessionOutcome(sessionId, outcome, note) the same way.
+
+7. Retention purge (your 30-day rule)
+src/app/api/cron/purge/route.ts, called on a schedule by Vercel Cron (check your plan's current cron limits; a daily run is enough):
+
+ts
+export async function GET(req: Request) {
+  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) return new Response("Unauthorized", { status: 401 });
+  const days = Number(process.env.AUDIT_RETENTION_DAYS ?? 30);
+  const old = db.select({ id: examSessions.id }).from(examSessions).where(and(
+    eq(examSessions.status, "submitted"),
+    lt(examSessions.submittedAt, sql`now() - (${days} * interval '1 day')`)));
+  const gone = await db.delete(examAuditLogs).where(inArray(examAuditLogs.sessionId, old)).returning({ id: examAuditLogs.id });
+  return Response.json({ deleted: gone.length });
+}
+vercel.json: { "crons": [{ "path": "/api/cron/purge", "schedule": "0 3 * * *" }] }. Session-level review outcomes and notes stay; only the event evidence goes. In M9 the same job will delete evidence images from storage.
+
+8. Tests and "done when"
+Unit tests:
+
+classify: the thresholds (a 59 s versus 60 s tab switch, a 29 vs 30-char paste, F12 versus Ctrl+S).
+reviewPriority: each rule triggers its level and reason, dismissed events don't count, and an empty log is low.
+Monitor (jsdom, dispatching events): a hidden-then-visible pair produces one TAB_SWITCH with a duration, a blur under 1.5 s produces nothing, events in the first 2.5 s are ignored, repeated context-menu clicks are throttled, and a paste event records length only.
+Server, against a test database: the same clientEventId twice yields one row, the cap stops at 1500, another student's session is refused, an oversized details value is rejected, and two concurrent heartbeats log one gap, not two. A gap with an overlapping OFFLINE event is info and marked explained.
+A student can't call reviewEvent or setSessionOutcome.
+Real-browser behaviors (fullscreen, tab focus) are flaky in headless tests, so cover them with a manual checklist.
+
+Done when:
+
+Switching tabs logs one TAB_SWITCH with its duration. Alt-tabbing logs a WINDOW_BLUR after 1.5 s, and a brief notification popup logs nothing or at most an info event.
+Exiting fullscreen shows a 10-second countdown. Returning in time logs a warning. Not returning hides the exam and disables input until the student clicks back in, then logs a critical event. The exam timer never pauses.
+Reloading mid-exam requires re-entering fullscreen, logs an info-level SESSION_RESUMED, and logs no violation.
+Pasting 200 characters logs the length only. Check the database and confirm no pasted text is stored. With restrictInput on, the paste is blocked but still logged.
+F12 and Ctrl+Shift+I are logged as "shortcut pressed". The UI never says DevTools was opened.
+Turning the network off for 3 minutes queues events locally, sends them on reconnect, and shows the connection gap as "explained by network loss".
+Closing the laptop lid for 5 minutes produces an unexplained gap event after wake.
+The teacher sees the priority with reasons, dismisses an event with a note, and the priority recalculates. A student account can't reach any of this.
+The purge route returns 401 without the secret and deletes only events of submitted sessions older than the retention window.
+A flood of 5,000 events results in at most 1,500 stored rows.
+What this layer can and can't tell you: it reliably shows that the student left the exam window and for how long, whether they pasted large text, and whether the exam client went silent. It cannot see a second device, a phone under the desk, or another person in the room. That's what camera analysis in M9 partly addresses, and even then only partly.
+
+Next is milestone 8: the live proctor grid. It adds WebSocket or realtime delivery of the events and heartbeat state you're now collecting, the teacher's Warn, Pause, and Force-submit actions, and the device-migration approval for the second-device gap noted in M6.
+
+
+
+You are out of free messages until 2:40 AM
+
+
+Claude is AI and can make mistakes. Please double-check responses.
+
+

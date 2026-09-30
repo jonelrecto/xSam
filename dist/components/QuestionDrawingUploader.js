@@ -1,0 +1,74 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.QuestionDrawingUploader = void 0;
+const jsx_runtime_1 = require("react/jsx-runtime");
+const react_1 = require("react");
+const QuestionDrawingUploader = ({ examSessionId, questionId, socket, onImageSynced, onAnomalyDetected }) => {
+    const [modalOpen, setModalOpen] = (0, react_1.useState)(false);
+    const [qrUrl, setQrUrl] = (0, react_1.useState)(null);
+    const [paperCode, setPaperCode] = (0, react_1.useState)(null);
+    const [ticket, setTicket] = (0, react_1.useState)(null);
+    const [secondsRemaining, setSecondsRemaining] = (0, react_1.useState)(90);
+    const [loading, setLoading] = (0, react_1.useState)(false);
+    const initUploadTicket = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/v1/exams/upload-ticket", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ examSessionId, questionId })
+            });
+            const data = await res.json();
+            setQrUrl(data.qrPayloadUrl);
+            setPaperCode(data.paperCode);
+            setTicket(data.ticket);
+            setSecondsRemaining(data.expiresInSeconds || 90);
+            setModalOpen(true);
+        }
+        catch (e) {
+            alert("Failed to generate upload ticket. Please try again.");
+        }
+        finally {
+            setLoading(false);
+        }
+    };
+    // Countdown timer for upload window
+    (0, react_1.useEffect)(() => {
+        if (!modalOpen || secondsRemaining <= 0)
+            return;
+        const interval = setInterval(() => {
+            setSecondsRemaining((prev) => {
+                if (prev <= 1) {
+                    setModalOpen(false); // Close modal on expiry
+                    if (onAnomalyDetected) {
+                        onAnomalyDetected("EXPIRED_TTL");
+                    }
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [modalOpen, secondsRemaining, onAnomalyDetected]);
+    // Listen to WebSocket for successful mobile sync
+    (0, react_1.useEffect)(() => {
+        if (!socket)
+            return;
+        const handleMessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event === "DRAWING_UPLOAD_SUCCESS" && data.payload.questionId === questionId) {
+                    onImageSynced(data.payload.imageUrl);
+                    setModalOpen(false);
+                }
+            }
+            catch (e) {
+                // Ignore unparseable socket messages
+            }
+        };
+        socket.addEventListener("message", handleMessage);
+        return () => socket.removeEventListener("message", handleMessage);
+    }, [socket, questionId, onImageSynced]);
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "drawing-container font-sans", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", disabled: loading, onClick: initUploadTicket, className: "px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-all flex items-center gap-2 cursor-pointer", children: [(0, jsx_runtime_1.jsx)("svg", { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: (0, jsx_runtime_1.jsx)("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M12 4v16m8-8H4" }) }), loading ? "Generating Ticket..." : "Upload Paper Drawing via Phone QR"] }), modalOpen && qrUrl && ((0, jsx_runtime_1.jsx)("div", { className: "fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4", children: (0, jsx_runtime_1.jsxs)("div", { className: "bg-slate-900 border border-slate-700 p-6 rounded-2xl text-center max-w-sm w-full shadow-2xl relative animate-in fade-in zoom-in duration-200", children: [(0, jsx_runtime_1.jsx)("button", { onClick: () => setModalOpen(false), className: "absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-lg", children: "\u2715" }), (0, jsx_runtime_1.jsx)("h3", { className: "text-xl font-extrabold text-white mb-1", children: "Scan with Phone Camera" }), (0, jsx_runtime_1.jsx)("p", { className: "text-xs text-slate-400 mb-4", children: "No app installation required. Uses native camera." }), (0, jsx_runtime_1.jsx)("div", { className: "bg-white p-4 rounded-xl inline-block shadow-inner my-2", children: (0, jsx_runtime_1.jsx)("img", { src: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrUrl)}`, alt: "Upload QR Code", className: "w-44 h-44 block" }) }), (0, jsx_runtime_1.jsxs)("div", { className: "bg-amber-950/60 border border-amber-500/50 p-3.5 rounded-xl my-4 text-center", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[10px] text-amber-300 block font-bold tracking-wider uppercase", children: "MANDATORY PAPER CODE" }), (0, jsx_runtime_1.jsx)("span", { className: "text-3xl font-black text-amber-400 tracking-widest font-mono", children: paperCode }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-amber-200/80 mt-1 leading-tight", children: "Handwrite this code at the top of your paper drawing before snapping the photo." })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800", children: [(0, jsx_runtime_1.jsx)("span", { children: "Upload Window:" }), (0, jsx_runtime_1.jsxs)("span", { className: "font-bold text-amber-400 text-sm", children: [secondsRemaining, "s remaining"] })] })] }) }))] }));
+};
+exports.QuestionDrawingUploader = QuestionDrawingUploader;
