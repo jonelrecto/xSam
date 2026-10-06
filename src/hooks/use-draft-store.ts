@@ -46,6 +46,7 @@ type DraftState = {
   setConfirmed: (id: string, v: boolean) => void;
   confirmAllProvided: () => void;
   markSaved: (version: number, revision: number) => void;
+  updateIds: (idMap: { clientTempId: string; dbId: string }[]) => void;
 };
 
 export const useDraftStore = create<DraftState>((set) => {
@@ -202,5 +203,20 @@ export const useDraftStore = create<DraftState>((set) => {
 
     markSaved: (version, revision) =>
       set({ version, savedRevision: revision }),
+
+    updateIds: (idMap) =>
+      set((s) => {
+        const idDict = new Map(idMap.map((m) => [m.clientTempId, m.dbId]));
+        let changed = false;
+        const updated = s.questions.map((q) => {
+          const dbId = idDict.get(q.tempId);
+          if (dbId && q.id !== dbId) {
+            changed = true;
+            return { ...q, id: dbId };
+          }
+          return q;
+        });
+        return changed ? { questions: updated } : s;
+      }),
   };
 });

@@ -10,7 +10,7 @@ interface ConflictDialogProps {
   examId: string;
   isOpen: boolean;
   onResolved: () => void;
-  onSave: () => Promise<void>;
+  onSave: () => Promise<any>;
 }
 
 export function ConflictDialog({
@@ -42,45 +42,46 @@ export function ConflictDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
-        <div className="flex items-center gap-3 text-amber-400">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-card border border-amber-500/40 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+        <div className="flex items-center gap-3 text-amber-600 dark:text-amber-400">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5" />
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h4 className="text-base font-bold text-white">Save Conflict Detected</h4>
-            <span className="text-xs text-amber-400">Concurrent Edits Occurred</span>
+            <h4 className="text-base font-bold text-card-foreground">Save Conflict Detected</h4>
+            <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Concurrent Edits Occurred</span>
           </div>
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           Another session or tab has saved edits to this draft since you loaded it. To prevent overwriting work, choose how you would like to proceed:
         </p>
 
         <div className="space-y-2 pt-2">
           <Button
             variant="outline"
-            className="w-full justify-start text-xs h-11 border-slate-700 hover:bg-slate-800"
+            className="w-full justify-start text-xs h-11 border-border hover:bg-muted"
             onClick={handleLoadLatest}
             disabled={isResolving}
           >
-            <RefreshCw className="w-4 h-4 mr-2 text-indigo-400" />
+            <RefreshCw className="w-4 h-4 mr-2 text-primary" />
             <div className="text-left">
-              <span className="font-bold block">Load Latest Version</span>
-              <span className="text-[10px] text-slate-400">Discard local draft and reload saved changes</span>
+              <span className="font-bold block text-foreground">Load Latest Version</span>
+              <span className="text-[10px] text-muted-foreground">Discard local draft and reload saved changes</span>
             </div>
           </Button>
 
           <Button
-            className="w-full justify-start text-xs h-11 bg-amber-600/20 border border-amber-500/40 text-amber-200 hover:bg-amber-600/30"
+            variant="outline"
+            className="w-full justify-start text-xs h-11 bg-amber-500/10 border border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20"
             onClick={handleOverwrite}
             isLoading={isResolving}
           >
-            <UploadCloud className="w-4 h-4 mr-2 text-amber-400" />
+            <UploadCloud className="w-4 h-4 mr-2 text-amber-600 dark:text-amber-400" />
             <div className="text-left">
               <span className="font-bold block">Overwrite with My Version</span>
-              <span className="text-[10px] text-amber-300/70">Force save your current editor state</span>
+              <span className="text-[10px] text-amber-700 dark:text-amber-300/80">Force save your current editor state</span>
             </div>
           </Button>
         </div>

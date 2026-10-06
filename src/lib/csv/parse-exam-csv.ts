@@ -1,7 +1,7 @@
 import Papa from "papaparse";
-import readXlsxFile from "read-excel-file/universal";
-import type { DraftQuestion } from "@/lib/schemas/exam";
-import { plainTextToTiptap } from "@/lib/editor/converters";
+import readXlsxFile from "read-excel-file/node";
+import type { DraftQuestion } from "@xsam/shared";
+import { plainTextToTiptap } from "@xsam/shared";
 
 export const MAX_ROWS = 200;
 export const MAX_BYTES = 1_000_000;
@@ -59,31 +59,65 @@ export async function parseExamCsv(file: File): Promise<CsvParseResult> {
   }
 
   const isExcel =
-    file.name.endsWith(".xlsx") ||
+    file.name.toLowerCase().endsWith(".xlsx") ||
     file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
   if (isExcel) {
     try {
-      const rows = (await readXlsxFile(file)) as unknown as any[][];
-      if (!rows || rows.length === 0) {
-        return fileError("The uploaded Excel file is empty.");
+      const parsedData = (await readXlsxFile(file as any)) as any;
+      let sheetRows: any[][] = [];
+
+      if (Array.isArray(parsedData) && parsedData.length > 0) {
+        // Multi-sheet format: [{ sheet: 'Questions', data: [[...], [...]] }, ...]
+        if (parsedData[0] && typeof parsedData[0] === "object" && "data" in parsedData[0]) {
+          const questionsSheet =
+            parsedData.find(
+              (s: any) =>
+                String(s.sheet || "")
+                  .trim()
+                  .toLowerCase() === "questions"
+            ) ||
+            parsedData.find(
+              (s: any) =>
+                Array.isArray(s.data) &&
+                s.data.length > 0 &&
+                String(s.sheet || "")
+                  .trim()
+                  .toLowerCase() !== "instructions"
+            ) ||
+            parsedData[0];
+          sheetRows = questionsSheet?.data || [];
+        } else if (Array.isArray(parsedData[0])) {
+          // Standard 2D array format: [[...], [...]]
+          sheetRows = parsedData;
+        }
       }
 
-      const headerRow: string[] = (rows[0] || []).map((c: any) =>
+      if (!sheetRows || sheetRows.length === 0) {
+        return fileError("The uploaded Excel file contains no data rows.");
+      }
+
+      const headerRow: string[] = (sheetRows[0] || []).map((c: any) =>
         String(c || "").trim().toLowerCase()
       );
 
       const records: Record<string, string>[] = [];
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.every((c: any) => c === null || c === undefined || String(c).trim() === "")) {
+      for (let i = 1; i < sheetRows.length; i++) {
+        const row = sheetRows[i];
+        if (
+          !row ||
+          row.every(
+            (c: any) => c === null || c === undefined || String(c).trim() === ""
+          )
+        ) {
           continue; // Skip blank rows
         }
         const record: Record<string, string> = {};
         headerRow.forEach((header: string, colIdx: number) => {
           if (header) {
             const val = row[colIdx];
-            record[header] = val !== null && val !== undefined ? String(val).trim() : "";
+            record[header] =
+              val !== null && val !== undefined ? String(val).trim() : "";
           }
         });
         records.push(record);
@@ -156,13 +190,13 @@ export function validateRows(
     let order = i + 1;
     if (cell("order")) {
       const parsedOrder = Number(cell("order"));
-      if (!Number.isInteger(parsedOrder) || parsedOrder < 1) {
-        err("order", "Order must be a positive integer.");
+      if (isNaN(parsedOrder) || parsedOrder < 1) {
+        warn("order", "Order must be a positive number. Using sequence number.");
       } else if (seenOrders.has(parsedOrder)) {
         warn("order", `Duplicate order ${parsedOrder}. Question will be appended sequentially.`);
       } else {
-        order = parsedOrder;
-        seenOrders.add(parsedOrder);
+        order = Math.floor(parsedOrder);
+        seenOrders.add(order);
       }
     }
 
@@ -194,7 +228,7 @@ export function validateRows(
     if (type === "multiple_choice") {
       const rawOpts = OPTION_KEYS.map((k) => cell(k)).filter(Boolean);
       if (rawOpts.length < 2) {
-        err("opt_a", "Multiple choice questions require at least 2 options.");
+        err("opt_a", "Multiple choice questions require at least 2 options (opt_a and opt_b).");
       }
       options = rawOpts;
 
@@ -202,17 +236,34 @@ export function validateRows(
       if (!rawAnswer) {
         err("answer", "Multiple choice question requires an answer key.");
       } else {
-        const letterKey = rawAnswer.toLowerCase();
+        const letterKey = rawAnswer.toLowerCase().trim();
         if (letterKey in LETTER_TO_INDEX) {
           const idx = LETTER_TO_INDEX[letterKey];
           if (idx < rawOpts.length) {
             answers = [rawOpts[idx]];
             confirmed = true;
           } else {
-            err("answer", `Answer letter '${rawAnswer}' refers to an option that does not exist.`);
+            err("answer", `Answer letter '${rawAnswer.toUpperCase()}' refers to an option that does not exist.`);
           }
-        } else if (rawOpts.some((o) => o.toLowerCase() === rawAnswer.toLowerCase())) {
-          const matched = rawOpts.find((o) => o.toLowerCase() === rawAnswer.toLowerCase())!;
+        } else if (/^opt_[a-f]$/i.test(letterKey)) {
+          const letter = letterKey.replace("opt_", "");
+          const idx = LETTER_TO_INDEX[letter];
+          if (idx !== undefined && idx < rawOpts.length) {
+            answers = [rawOpts[idx]];
+            confirmed = true;
+          } else {
+            err("answer", `Answer '${rawAnswer}' refers to an option that does not exist.`);
+          }
+        } else if (/^[1-6]$/.test(letterKey)) {
+          const idx = parseInt(letterKey, 10) - 1;
+          if (idx < rawOpts.length) {
+            answers = [rawOpts[idx]];
+            confirmed = true;
+          } else {
+            err("answer", `Answer index ${letterKey} exceeds option count (${rawOpts.length}).`);
+          }
+        } else if (rawOpts.some((o) => o.toLowerCase().trim() === rawAnswer.toLowerCase().trim())) {
+          const matched = rawOpts.find((o) => o.toLowerCase().trim() === rawAnswer.toLowerCase().trim())!;
           answers = [matched];
           confirmed = true;
         } else {
@@ -221,11 +272,11 @@ export function validateRows(
       }
     } else if (type === "true_false") {
       options = null;
-      const rawAnswer = cell("answer").toLowerCase();
-      if (["true", "t", "1", "yes"].includes(rawAnswer)) {
+      const rawAnswer = cell("answer").toLowerCase().trim();
+      if (["true", "t", "1", "yes", "tama"].includes(rawAnswer)) {
         answers = ["true"];
         confirmed = true;
-      } else if (["false", "f", "0", "no"].includes(rawAnswer)) {
+      } else if (["false", "f", "0", "no", "mali"].includes(rawAnswer)) {
         answers = ["false"];
         confirmed = true;
       } else {
@@ -237,9 +288,8 @@ export function validateRows(
       if (!rawAnswer) {
         err("answer", "Identification question requires at least one accepted answer.");
       } else {
-        // Split on pipe (|)
         answers = rawAnswer
-          .split("|")
+          .split(/[|;]/)
           .map((a) => a.trim())
           .filter(Boolean);
         if (answers.length === 0) {
@@ -263,7 +313,7 @@ export function validateRows(
 
     if (type) {
       questions.push({
-        tempId: crypto.randomUUID(),
+        tempId: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
         order,
         type,
         prompt: prompt || "",

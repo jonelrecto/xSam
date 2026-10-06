@@ -3,15 +3,25 @@
   "version": "1.0.0",
   "description": "Secure Exam & Proctoring Environment (SEPE / XSAM)",
   "main": "dist/server.js",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "dev:gateway": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "next build",
-    "start": "next start",
+    "dev": "npm run dev --workspace=@xsam/web",
+    "dev:server": "npm run dev --workspace=@xsam/server",
+    "dev:web": "npm run dev --workspace=@xsam/web",
+    "dev:all": "npm run dev --workspaces --if-present",
+    "build:packages": "npm run build --workspace=@xsam/shared && npm run build --workspace=@xsam/db",
+    "build:server": "npm run build --workspace=@xsam/server",
+    "build:web": "npm run build --workspace=@xsam/web",
+    "build": "npm run build:packages && npm run build:server && npm run build:web",
+    "next:dev": "next dev",
+    "next:build": "next build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
+    "db:generate": "npm run db:generate --workspace=@xsam/db",
+    "db:push": "npm run db:push --workspace=@xsam/db",
     "db:seed": "tsx -r dotenv/config src/scripts/seed.ts"
   },
   "dependencies": {

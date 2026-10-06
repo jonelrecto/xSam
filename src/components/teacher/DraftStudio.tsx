@@ -72,12 +72,10 @@ export function DraftStudio({
   const [docImportOpen, setDocImportOpen] = useState(false);
   const [bankPickerOpen, setBankPickerOpen] = useState(false);
 
-  // Initialize store on mount
   useEffect(() => {
     init(exam.id, initialQuestions, initialVersion);
   }, [exam.id, initialQuestions, initialVersion, init]);
 
-  // Configure DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -87,7 +85,6 @@ export function DraftStudio({
     })
   );
 
-  // Summary statistics
   const stats = useMemo(() => {
     let totalPoints = 0;
     let confirmedCount = 0;
@@ -116,34 +113,33 @@ export function DraftStudio({
 
   if (!hydrated) {
     return (
-      <div className="max-w-5xl mx-auto py-12 text-center text-slate-400 animate-pulse">
+      <div className="max-w-5xl mx-auto py-12 text-center text-muted-foreground animate-pulse">
         <p>Loading Exam Draft Studio...</p>
       </div>
     );
   }
 
-  // If exam is locked from modifications
   if (!isEditable) {
     return (
       <div className="max-w-5xl mx-auto space-y-6">
-        <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+            <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>
               This exam is <strong>LOCKED</strong>. {sessionCount > 0 ? `${sessionCount} student sessions have already started.` : "The scheduled availability window has opened."} Questions cannot be modified to protect scoring integrity.
             </span>
           </div>
           <Link href={`/teacher/exams/${exam.id}`}>
-            <Button variant="outline" size="sm" className="border-amber-500/40 text-amber-300">
+            <Button variant="outline" size="sm" className="border-amber-500/40 text-amber-700 dark:text-amber-300">
               Exam Details
             </Button>
           </Link>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white">{exam.title}</h2>
-          <p className="text-xs text-slate-400">
-            Access Code: <code className="font-mono text-indigo-300 font-bold">{exam.accessCode}</code> • {questions.length} Questions
+          <h2 className="text-2xl font-bold text-foreground">{exam.title}</h2>
+          <p className="text-xs text-muted-foreground">
+            Access Code: <code className="font-mono text-primary font-bold">{exam.accessCode}</code> • {questions.length} Questions
           </p>
 
           <div className="space-y-4">
@@ -160,11 +156,10 @@ export function DraftStudio({
     <div className="max-w-5xl mx-auto space-y-6 pb-24">
       <WizardSteps currentStep={2} examId={exam.id} />
 
-      {/* Published Exam Pre-Start Warning Banner */}
       {exam.status === "published" && (
-        <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-300 flex items-center justify-between">
+        <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/30 text-xs text-primary flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-indigo-400 shrink-0" />
+            <Info className="w-4 h-4 shrink-0" />
             <span>
               <strong>Pre-Start Published Edit Mode:</strong> This exam is published (Code: <code>{exam.accessCode}</code>). You can edit questions before sessions start. Strict validation is enforced on save.
             </span>
@@ -174,29 +169,28 @@ export function DraftStudio({
       )}
 
       {/* Sticky Action Header */}
-      <div className="sticky top-16 z-30 -mx-4 px-4 py-3 bg-slate-950/90 backdrop-blur-xl border-y border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
+      <div className="sticky top-16 z-30 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-xl border-y border-border flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/teacher" className="text-slate-400 hover:text-white p-1">
+          <Link href="/teacher" className="text-muted-foreground hover:text-foreground p-1">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-white truncate max-w-xs sm:max-w-md">
+            <h2 className="text-base sm:text-lg font-bold text-foreground truncate max-w-xs sm:max-w-md">
               {exam.title}
             </h2>
             <div className="flex items-center gap-2">
-              {/* Save Status Pill */}
               {status === "saved" && (
-                <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
                   <CheckCircle2 className="w-3 h-3" /> Saved
                 </span>
               )}
               {status === "saving" && (
-                <span className="text-[11px] text-indigo-400 flex items-center gap-1 animate-pulse">
+                <span className="text-[11px] text-primary flex items-center gap-1 animate-pulse font-medium">
                   <RotateCcw className="w-3 h-3 animate-spin" /> Saving draft...
                 </span>
               )}
               {status === "dirty" && (
-                <span className="text-[11px] text-amber-400 flex items-center gap-1">
+                <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
                   <Clock className="w-3 h-3" /> Unsaved changes
                 </span>
               )}
@@ -204,7 +198,7 @@ export function DraftStudio({
                 <button
                   type="button"
                   onClick={() => save()}
-                  className="text-[11px] text-red-400 hover:underline flex items-center gap-1"
+                  className="text-[11px] text-destructive hover:underline flex items-center gap-1 font-medium"
                 >
                   <AlertTriangle className="w-3 h-3" /> Save failed (Click to retry)
                 </button>
@@ -218,7 +212,7 @@ export function DraftStudio({
             variant="outline"
             size="sm"
             onClick={confirmAllProvided}
-            className="text-xs border-slate-700 text-slate-300 hover:text-white"
+            className="text-xs"
             title="Confirm all provided CSV/manual answers"
           >
             Confirm Provided Keys
@@ -228,7 +222,7 @@ export function DraftStudio({
             <Button
               size="sm"
               onClick={() => setPublishOpen(true)}
-              className="font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25"
+              className="font-semibold gap-1.5"
             >
               <Send className="w-3.5 h-3.5" />
               Publish Exam
@@ -247,17 +241,16 @@ export function DraftStudio({
       {/* Import & Bank Repository Bars */}
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* AI Document Import Card */}
-          <div className="flex items-center justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/60 shadow-sm">
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/25 text-primary flex items-center justify-center">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <h4 className="text-sm font-bold text-card-foreground flex items-center gap-2">
                   AI Document Import
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-muted-foreground">
                   Parse questions from PDF / Word documents
                 </p>
               </div>
@@ -266,24 +259,23 @@ export function DraftStudio({
               size="sm"
               variant="outline"
               onClick={() => setDocImportOpen(true)}
-              className="text-xs border-slate-700 hover:border-indigo-500"
+              className="text-xs"
             >
               <Upload className="w-3.5 h-3.5 mr-1" />
               Import File
             </Button>
           </div>
 
-          {/* Question Bank Picker Card */}
-          <div className="flex items-center justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/60 shadow-sm">
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                 <BookOpen className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <h4 className="text-sm font-bold text-card-foreground flex items-center gap-2">
                   Question Bank
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-muted-foreground">
                   Insert items from your verified question library
                 </p>
               </div>
@@ -292,7 +284,7 @@ export function DraftStudio({
               size="sm"
               variant="outline"
               onClick={() => setBankPickerOpen(true)}
-              className="text-xs border-slate-700 hover:border-emerald-500"
+              className="text-xs"
             >
               <BookOpen className="w-3.5 h-3.5 mr-1" />
               Open Bank
@@ -304,35 +296,35 @@ export function DraftStudio({
       </div>
 
       {/* Summary Metrics Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
-        <div className="text-center sm:border-r border-slate-800">
-          <span className="text-slate-500 block text-[10px] uppercase font-bold">Total Items</span>
-          <span className="font-mono text-lg font-black text-white">{stats.totalQuestions}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 rounded-xl bg-card border border-border text-xs shadow-sm">
+        <div className="text-center sm:border-r border-border">
+          <span className="text-muted-foreground block text-[10px] uppercase font-bold">Total Items</span>
+          <span className="font-mono text-lg font-black text-card-foreground">{stats.totalQuestions}</span>
         </div>
-        <div className="text-center sm:border-r border-slate-800">
-          <span className="text-slate-500 block text-[10px] uppercase font-bold">Total Points</span>
-          <span className="font-mono text-lg font-black text-white">{stats.totalPoints}</span>
+        <div className="text-center sm:border-r border-border">
+          <span className="text-muted-foreground block text-[10px] uppercase font-bold">Total Points</span>
+          <span className="font-mono text-lg font-black text-card-foreground">{stats.totalPoints}</span>
         </div>
-        <div className="text-center sm:border-r border-slate-800">
-          <span className="text-emerald-500 block text-[10px] uppercase font-bold">Confirmed</span>
-          <span className="font-mono text-lg font-black text-emerald-400">{stats.confirmedCount}</span>
+        <div className="text-center sm:border-r border-border">
+          <span className="text-emerald-600 dark:text-emerald-400 block text-[10px] uppercase font-bold">Confirmed</span>
+          <span className="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">{stats.confirmedCount}</span>
         </div>
-        <div className="text-center sm:border-r border-slate-800">
-          <span className="text-indigo-400 block text-[10px] uppercase font-bold">Needs Review</span>
-          <span className="font-mono text-lg font-black text-indigo-300">{stats.needsReviewCount}</span>
+        <div className="text-center sm:border-r border-border">
+          <span className="text-primary block text-[10px] uppercase font-bold">Needs Review</span>
+          <span className="font-mono text-lg font-black text-primary">{stats.needsReviewCount}</span>
         </div>
         <div className="text-center col-span-2 sm:col-span-1">
-          <span className="text-red-400 block text-[10px] uppercase font-bold">Missing Key</span>
-          <span className="font-mono text-lg font-black text-red-400">{stats.missingAnswerCount}</span>
+          <span className="text-destructive block text-[10px] uppercase font-bold">Missing Key</span>
+          <span className="font-mono text-lg font-black text-destructive">{stats.missingAnswerCount}</span>
         </div>
       </div>
 
       {/* Questions DnD List */}
       {questions.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 space-y-3">
-          <FileQuestion className="w-12 h-12 text-slate-600 mx-auto opacity-50" />
-          <h3 className="text-base font-bold text-white">Your Question Draft is Empty</h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+        <div className="p-12 text-center rounded-2xl border border-dashed border-border bg-card/40 space-y-3">
+          <FileQuestion className="w-12 h-12 text-muted-foreground mx-auto opacity-50" />
+          <h3 className="text-base font-bold text-card-foreground">Your Question Draft is Empty</h3>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
             Upload a PDF / Word document, CSV spreadsheet, insert from your Question Bank, or add questions manually below.
           </p>
         </div>
@@ -366,8 +358,8 @@ export function DraftStudio({
       )}
 
       {/* Quick Add Question Bar */}
-      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+      <div className="p-4 rounded-xl border border-border bg-card flex flex-wrap items-center justify-between gap-3 shadow-sm">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           + Add Question Manually:
         </span>
         <div className="flex flex-wrap gap-2">
@@ -375,7 +367,7 @@ export function DraftStudio({
             variant="outline"
             size="sm"
             onClick={() => add("multiple_choice")}
-            className="text-xs gap-1.5 border-slate-700 hover:border-indigo-500 hover:text-indigo-300"
+            className="text-xs gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> Multiple Choice
           </Button>
@@ -384,7 +376,7 @@ export function DraftStudio({
             variant="outline"
             size="sm"
             onClick={() => add("true_false")}
-            className="text-xs gap-1.5 border-slate-700 hover:border-indigo-500 hover:text-indigo-300"
+            className="text-xs gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> True / False
           </Button>
@@ -393,7 +385,7 @@ export function DraftStudio({
             variant="outline"
             size="sm"
             onClick={() => add("identification")}
-            className="text-xs gap-1.5 border-slate-700 hover:border-indigo-500 hover:text-indigo-300"
+            className="text-xs gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> Identification
           </Button>
@@ -402,14 +394,13 @@ export function DraftStudio({
             variant="outline"
             size="sm"
             onClick={() => add("essay")}
-            className="text-xs gap-1.5 border-slate-700 hover:border-indigo-500 hover:text-indigo-300"
+            className="text-xs gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> Essay
           </Button>
         </div>
       </div>
 
-      {/* Pre-Publish Checklist Dialog */}
       <PublishDialog
         exam={exam}
         isOpen={publishOpen}
@@ -417,7 +408,6 @@ export function DraftStudio({
         onFlush={flush}
       />
 
-      {/* Optimistic Lock Conflict Dialog */}
       <ConflictDialog
         examId={exam.id}
         isOpen={status === "conflict"}
@@ -425,14 +415,12 @@ export function DraftStudio({
         onSave={save}
       />
 
-      {/* Document Import Modal */}
       <DocumentImportModal
         examId={exam.id}
         isOpen={docImportOpen}
         onClose={() => setDocImportOpen(false)}
       />
 
-      {/* Question Bank Picker Modal */}
       <QuestionBankPicker
         isOpen={bankPickerOpen}
         onClose={() => setBankPickerOpen(false)}

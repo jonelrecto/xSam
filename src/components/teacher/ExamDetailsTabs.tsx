@@ -156,14 +156,14 @@ export function ExamDetailsTabs({
   return (
     <div className="space-y-6">
       {/* Navigation Tabs Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-border pb-3">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === "overview"
-              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-950"
-              : "text-slate-400 hover:text-white hover:bg-slate-900"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
         >
           <Settings className="w-4 h-4" />
@@ -175,8 +175,8 @@ export function ExamDetailsTabs({
           onClick={() => setActiveTab("results")}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === "results"
-              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-950"
-              : "text-slate-400 hover:text-white hover:bg-slate-900"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
         >
           <Users className="w-4 h-4" />
@@ -188,8 +188,8 @@ export function ExamDetailsTabs({
           onClick={() => setActiveTab("analytics")}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === "analytics"
-              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-950"
-              : "text-slate-400 hover:text-white hover:bg-slate-900"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
         >
           <BarChart3 className="w-4 h-4" />
@@ -202,14 +202,14 @@ export function ExamDetailsTabs({
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Exam Parameters */}
-            <Card className="border-slate-800 bg-slate-900/80 md:col-span-2">
-              <CardHeader className="flex flex-row items-center justify-between">
+            <Card className="border-border bg-card md:col-span-2 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 pb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <CardTitle className="text-base text-white">Exam Parameters</CardTitle>
+                    <CardTitle className="text-base text-card-foreground">Exam Parameters</CardTitle>
                     <ExamStatusBadge status={displayStatus} />
                   </div>
-                  <CardDescription>{exam.description || "No description provided."}</CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground">{exam.description || "No description provided."}</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   {exam.status !== "draft" && (
@@ -220,18 +220,18 @@ export function ExamDetailsTabs({
                       disabled={isPostponing}
                       className={`text-xs ${
                         exam.status === "postponed"
-                          ? "border-emerald-500/50 text-emerald-300 hover:bg-emerald-950/40"
-                          : "border-amber-500/50 text-amber-300 hover:bg-amber-950/40"
+                          ? "border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                          : "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
                       }`}
                     >
                       {exam.status === "postponed" ? (
                         <>
-                          <PlayCircle className="w-3.5 h-3.5 mr-1 text-emerald-400" />
+                          <PlayCircle className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
                           Resume Exam
                         </>
                       ) : (
                         <>
-                          <PauseCircle className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                          <PauseCircle className="w-3.5 h-3.5 mr-1 text-amber-600 dark:text-amber-400" />
                           Postpone Exam
                         </>
                       )}
@@ -242,43 +242,43 @@ export function ExamDetailsTabs({
                       variant="outline"
                       size="sm"
                       onClick={() => setIsSettingsOpen(true)}
-                      className="text-xs border-slate-700 hover:border-indigo-500"
+                      className="text-xs"
                     >
-                      <Settings className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                      <Settings className="w-3.5 h-3.5 mr-1 text-primary" />
                       Edit Settings
                     </Button>
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Duration</span>
-                    <span className="text-sm font-bold text-white flex items-center gap-1.5 mt-0.5">
-                      <Clock className="w-4 h-4 text-indigo-400" />
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Duration</span>
+                    <span className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-0.5">
+                      <Clock className="w-4 h-4 text-primary" />
                       {exam.durationMinutes} Mins
                     </span>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Questions</span>
-                    <span className="text-sm font-bold text-white flex items-center gap-1.5 mt-0.5">
-                      <FileQuestion className="w-4 h-4 text-cyan-400" />
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Questions</span>
+                    <span className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-0.5">
+                      <FileQuestion className="w-4 h-4 text-primary" />
                       {qCount} Items
                     </span>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Pass Benchmark</span>
-                    <span className="text-sm font-bold text-white flex items-center gap-1.5 mt-0.5 font-mono">
-                      <Percent className="w-3.5 h-3.5 text-emerald-400" />
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Pass Benchmark</span>
+                    <span className="text-sm font-bold text-foreground flex items-center gap-1.5 mt-0.5 font-mono">
+                      <Percent className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       {exam.passingPercent}%
                     </span>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Category</span>
-                    <span className="text-xs font-bold text-white block mt-1 truncate">
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Category</span>
+                    <span className="text-xs font-bold text-foreground block mt-1 truncate">
                       {matchedCategory ? (
                         <span
                           className="px-2 py-0.5 rounded text-[10px] text-white"
@@ -294,14 +294,14 @@ export function ExamDetailsTabs({
                 </div>
 
                 {/* Schedule Window */}
-                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-indigo-400" />
+                <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-primary" />
                     Availability Window
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-foreground">
                     <div>
-                      <span className="text-slate-500 block">Opens:</span>
+                      <span className="text-muted-foreground block">Opens:</span>
                       <span>
                         {exam.scheduledStart
                           ? new Date(exam.scheduledStart).toLocaleString()
@@ -309,7 +309,7 @@ export function ExamDetailsTabs({
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Closes:</span>
+                      <span className="text-muted-foreground block">Closes:</span>
                       <span>
                         {exam.scheduledEnd
                           ? new Date(exam.scheduledEnd).toLocaleString()
@@ -320,23 +320,23 @@ export function ExamDetailsTabs({
                 </div>
 
                 {/* Assigned Classes Roster */}
-                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2.5">
+                <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <GraduationCap className="w-4 h-4 text-indigo-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4 text-primary" />
                       Assigned Class Rosters ({assignedClasses.length})
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsAssignClassesOpen(true)}
-                      className="text-[11px] h-6 text-indigo-400 hover:text-white"
+                      className="text-[11px] h-6 text-primary hover:text-primary/80"
                     >
                       Assign / Change Classes
                     </Button>
                   </div>
                   {assignedClasses.length === 0 ? (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       No class assigned. The exam operates as an open access code exam.
                     </p>
                   ) : (
@@ -344,9 +344,9 @@ export function ExamDetailsTabs({
                       {assignedClasses.map((c) => (
                         <span
                           key={c.id}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5"
+                          className="px-2.5 py-1 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold flex items-center gap-1.5"
                         >
-                          <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                          <GraduationCap className="w-3.5 h-3.5 text-primary" />
                           {c.name} {c.section ? `(${c.section})` : ""}
                         </span>
                       ))}
@@ -357,39 +357,39 @@ export function ExamDetailsTabs({
             </Card>
 
             {/* Anti-Cheating & Security Invariants */}
-            <Card className="border-slate-800 bg-slate-900/80">
-              <CardHeader>
-                <CardTitle className="text-base text-white">Security Controls</CardTitle>
-                <CardDescription>Integrity monitoring switches</CardDescription>
+            <Card className="border-border bg-card shadow-sm">
+              <CardHeader className="border-b border-border/50 pb-4">
+                <CardTitle className="text-base text-card-foreground">Security Controls</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">Integrity monitoring switches</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 text-xs">
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Shuffle Questions:</span>
-                  <span className="font-bold text-white">
+              <CardContent className="space-y-3 text-xs pt-4">
+                <div className="flex items-center justify-between py-1 border-b border-border">
+                  <span className="text-muted-foreground">Shuffle Questions:</span>
+                  <span className="font-bold text-foreground">
                     {exam.shuffleQuestions ? "Enabled" : "Disabled"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Shuffle Options:</span>
-                  <span className="font-bold text-white">
+                <div className="flex items-center justify-between py-1 border-b border-border">
+                  <span className="text-muted-foreground">Shuffle Options:</span>
+                  <span className="font-bold text-foreground">
                     {exam.shuffleOptions ? "Enabled" : "Disabled"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Fullscreen Gate:</span>
-                  <span className="font-bold text-white">
+                <div className="flex items-center justify-between py-1 border-b border-border">
+                  <span className="text-muted-foreground">Fullscreen Gate:</span>
+                  <span className="font-bold text-foreground">
                     {exam.enforceFullscreen ? "Enabled (10s)" : "Disabled"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Webcam Monitor:</span>
-                  <span className="font-bold text-white">
+                <div className="flex items-center justify-between py-1 border-b border-border">
+                  <span className="text-muted-foreground">Webcam Monitor:</span>
+                  <span className="font-bold text-foreground">
                     {exam.requireCamera ? "Required" : "Optional"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1">
-                  <span className="text-slate-400">Score Display:</span>
-                  <span className="font-bold text-white">
+                  <span className="text-muted-foreground">Score Display:</span>
+                  <span className="font-bold text-foreground">
                     {exam.showScoreOnSubmit ? "Immediate" : "Teacher Released"}
                   </span>
                 </div>
@@ -411,47 +411,47 @@ export function ExamDetailsTabs({
 
       {/* Edit Settings Modal */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <form
             onSubmit={handleSaveSettings}
-            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto custom-scrollbar"
           >
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-              <Settings className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Edit Exam Configuration</h3>
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <Settings className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-card-foreground">Edit Exam Configuration</h3>
             </div>
 
             {settingsError && (
-              <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs">
+              <div className="p-3 rounded-xl bg-destructive/15 border border-destructive/30 text-destructive text-xs font-medium">
                 {settingsError}
               </div>
             )}
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">Exam Title *</label>
+                <label className="font-semibold text-foreground block mb-1">Exam Title *</label>
                 <Input
                   type="text"
                   value={settingsTitle}
                   onChange={(e) => setSettingsTitle(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-xs"
+                  className="bg-background border-input text-xs"
                   required
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">Description</label>
+                <label className="font-semibold text-foreground block mb-1">Description</label>
                 <textarea
                   rows={2}
                   value={settingsDescription}
                   onChange={(e) => setSettingsDescription(e.target.value)}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs text-slate-200"
+                  className="w-full rounded-lg border border-input bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">
+                  <label className="font-semibold text-foreground block mb-1">
                     Duration (Minutes) *
                   </label>
                   <Input
@@ -460,13 +460,13 @@ export function ExamDetailsTabs({
                     max={480}
                     value={settingsDuration}
                     onChange={(e) => setSettingsDuration(Number(e.target.value))}
-                    className="bg-slate-950 border-slate-800 text-xs"
+                    className="bg-background border-input text-xs"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">
+                  <label className="font-semibold text-foreground block mb-1">
                     Passing Score (%) *
                   </label>
                   <Input
@@ -475,18 +475,18 @@ export function ExamDetailsTabs({
                     max={100}
                     value={settingsPassingPercent}
                     onChange={(e) => setSettingsPassingPercent(Number(e.target.value))}
-                    className="bg-slate-950 border-slate-800 text-xs"
+                    className="bg-background border-input text-xs"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">Category</label>
+                <label className="font-semibold text-foreground block mb-1">Category</label>
                 <select
                   value={settingsCategoryId}
                   onChange={(e) => setSettingsCategoryId(e.target.value)}
-                  className="w-full h-8 px-2.5 rounded-lg border border-slate-800 bg-slate-950 text-xs text-slate-300"
+                  className="w-full h-9 px-2.5 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="">No Category (General)</option>
                   {categories.map((c) => (
@@ -499,32 +499,32 @@ export function ExamDetailsTabs({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Start Time (Optional)</label>
+                  <label className="font-semibold text-foreground block mb-1">Start Time (Optional)</label>
                   <Input
                     type="datetime-local"
                     value={settingsStart}
                     onChange={(e) => setSettingsStart(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-xs"
+                    className="bg-background border-input text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">
-                    Closing Date & Time <span className="text-red-400">*</span>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Closing Date & Time <span className="text-destructive">*</span>
                   </label>
                   <Input
                     type="datetime-local"
                     value={settingsEnd}
                     onChange={(e) => setSettingsEnd(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-xs"
+                    className="bg-background border-input text-xs"
                     required
                   />
                 </div>
               </div>
 
               {/* Security Toggles */}
-              <div className="pt-2 border-t border-slate-800 space-y-2.5">
-                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[10px]">
+              <div className="pt-2 border-t border-border space-y-2.5">
+                <span className="font-bold text-muted-foreground uppercase tracking-wider block text-[10px]">
                   Security & Experience Controls:
                 </span>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -532,11 +532,11 @@ export function ExamDetailsTabs({
                     type="checkbox"
                     checked={settingsShuffleQ}
                     onChange={(e) => setSettingsShuffleQ(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-indigo-600"
+                    className="rounded bg-background border-input text-primary focus:ring-ring"
                   />
                   <div>
-                    <span className="font-medium text-slate-200 block">Shuffle question order</span>
-                    <span className="text-[10px] text-slate-400">Randomize question order per student</span>
+                    <span className="font-medium text-foreground block">Shuffle question order</span>
+                    <span className="text-[10px] text-muted-foreground">Randomize question order per student</span>
                   </div>
                 </label>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -544,11 +544,11 @@ export function ExamDetailsTabs({
                     type="checkbox"
                     checked={settingsShuffleOpt}
                     onChange={(e) => setSettingsShuffleOpt(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-indigo-600"
+                    className="rounded bg-background border-input text-primary focus:ring-ring"
                   />
                   <div>
-                    <span className="font-medium text-slate-200 block">Shuffle options</span>
-                    <span className="text-[10px] text-slate-400">Randomize multiple choice options</span>
+                    <span className="font-medium text-foreground block">Shuffle options</span>
+                    <span className="text-[10px] text-muted-foreground">Randomize multiple choice options</span>
                   </div>
                 </label>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -556,11 +556,11 @@ export function ExamDetailsTabs({
                     type="checkbox"
                     checked={settingsFullscreen}
                     onChange={(e) => setSettingsFullscreen(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-indigo-600"
+                    className="rounded bg-background border-input text-primary focus:ring-ring"
                   />
                   <div>
-                    <span className="font-medium text-slate-200 block">Enforce fullscreen gate</span>
-                    <span className="text-[10px] text-slate-400">10s exit countdown before obscuring test runner</span>
+                    <span className="font-medium text-foreground block">Enforce fullscreen gate</span>
+                    <span className="text-[10px] text-muted-foreground">10s exit countdown before obscuring test runner</span>
                   </div>
                 </label>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -568,11 +568,11 @@ export function ExamDetailsTabs({
                     type="checkbox"
                     checked={settingsCamera}
                     onChange={(e) => setSettingsCamera(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-indigo-600"
+                    className="rounded bg-background border-input text-primary focus:ring-ring"
                   />
                   <div>
-                    <span className="font-medium text-slate-200 block">Require webcam proctoring check</span>
-                    <span className="text-[10px] text-slate-400">Requires camera permission & live validation</span>
+                    <span className="font-medium text-foreground block">Require webcam proctoring check</span>
+                    <span className="text-[10px] text-muted-foreground">Requires camera permission & live validation</span>
                   </div>
                 </label>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -580,17 +580,17 @@ export function ExamDetailsTabs({
                     type="checkbox"
                     checked={settingsShowScore}
                     onChange={(e) => setSettingsShowScore(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-indigo-600"
+                    className="rounded bg-background border-input text-primary focus:ring-ring"
                   />
                   <div>
-                    <span className="font-medium text-slate-200 block">Show score on submit</span>
-                    <span className="text-[10px] text-slate-400">Displays score immediately upon completion</span>
+                    <span className="font-medium text-foreground block">Show score on submit</span>
+                    <span className="text-[10px] text-muted-foreground">Displays score immediately upon completion</span>
                   </div>
                 </label>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
@@ -603,7 +603,7 @@ export function ExamDetailsTabs({
                 type="submit"
                 size="sm"
                 disabled={isSavingSettings}
-                className="bg-indigo-600 text-white font-semibold"
+                className="font-semibold"
               >
                 {isSavingSettings ? "Saving..." : "Save Settings"}
               </Button>
@@ -614,20 +614,20 @@ export function ExamDetailsTabs({
 
       {/* Assign Classes Modal */}
       {isAssignClassesOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fade-in">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-              <GraduationCap className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Assign Exam to Classes</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fade-in">
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-card-foreground">Assign Exam to Classes</h3>
             </div>
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Select classes to link to this exam. This allows roster tracking and automatic calculations of students who have not taken the exam.
             </p>
 
             <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
               {allClasses.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-500">
+                <div className="p-4 text-center text-xs text-muted-foreground">
                   No classes created yet. Create a class in the Classes menu first.
                 </div>
               ) : (
@@ -636,11 +636,11 @@ export function ExamDetailsTabs({
                   return (
                     <label
                       key={cls.id}
-                      className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between cursor-pointer hover:border-slate-700 text-xs"
+                      className="p-3 rounded-xl border border-border bg-muted/30 flex items-center justify-between cursor-pointer hover:border-border/80 text-xs"
                     >
                       <div>
-                        <span className="font-bold text-white block">{cls.name}</span>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="font-bold text-foreground block">{cls.name}</span>
+                        <span className="text-[11px] text-muted-foreground">
                           {cls.section ? `Section ${cls.section}` : cls.subject || "Class"}
                         </span>
                       </div>
@@ -654,7 +654,7 @@ export function ExamDetailsTabs({
                             setSelectedClassIds(selectedClassIds.filter((id) => id !== cls.id));
                           }
                         }}
-                        className="rounded bg-slate-900 border-slate-700 text-indigo-600"
+                        className="rounded bg-background border-input text-primary focus:ring-ring"
                       />
                     </label>
                   );
@@ -662,7 +662,7 @@ export function ExamDetailsTabs({
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
@@ -675,7 +675,7 @@ export function ExamDetailsTabs({
                 type="button"
                 size="sm"
                 onClick={handleSaveAssignedClasses}
-                className="bg-indigo-600 text-white font-semibold"
+                className="font-semibold"
               >
                 Save Assigned Classes
               </Button>

@@ -1,9 +1,6 @@
-"use client";
-
 import React, { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { editorExtensions } from "@/lib/editor/tiptap-config";
-import { plainTextToTiptap, tiptapToPlainText } from "@/lib/editor/converters";
+import { editorExtensions, plainTextToTiptap, tiptapToPlainText } from "@xsam/shared";
 import {
   Bold,
   Italic,
@@ -11,14 +8,11 @@ import {
   List,
   ListOrdered,
   Table as TableIcon,
-  Plus,
-  Trash2,
   Image as ImageIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface RichTextEditorProps {
-  value?: any; // JSON doc or string
+  value?: any;
   placeholder?: string;
   minHeight?: string;
   onChange?: (docJson: any, plainText: string) => void;
@@ -45,7 +39,7 @@ export function RichTextEditor({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: `prose prose-invert max-w-none text-sm focus:outline-none py-2 px-3 text-slate-100 min-h-[${minHeight}]`,
+        class: `prose max-w-none text-sm focus:outline-none py-2 px-3 text-foreground dark:text-slate-100 dark:prose-invert min-h-[${minHeight}]`,
       },
     },
     onUpdate: ({ editor }) => {
@@ -55,7 +49,6 @@ export function RichTextEditor({
     },
   });
 
-  // Keep content in sync if value changed externally
   useEffect(() => {
     if (!editor || !value) return;
     const currentJson = JSON.stringify(editor.getJSON());
@@ -72,7 +65,7 @@ export function RichTextEditor({
   if (!editor) {
     return (
       <div
-        className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-500 animate-pulse"
+        className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground animate-pulse"
         style={{ minHeight }}
       >
         Loading rich editor...
@@ -96,16 +89,15 @@ export function RichTextEditor({
   };
 
   return (
-    <div className="w-full rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden focus-within:border-indigo-500/80 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
-      {/* Editor Toolbar */}
+    <div className="w-full rounded-xl border border-input bg-background overflow-hidden focus-within:border-primary/80 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
       {!disabled && (
-        <div className="flex flex-wrap items-center gap-1 p-1.5 bg-slate-900/90 border-b border-slate-800/80 text-slate-400">
+        <div className="flex flex-wrap items-center gap-1 p-1.5 bg-muted/60 border-b border-border text-muted-foreground">
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors ${
+            className={`p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors ${
               editor.isActive("bold")
-                ? "bg-indigo-600/30 text-indigo-400 font-bold"
+                ? "bg-primary/20 text-primary font-bold"
                 : ""
             }`}
             title="Bold (Ctrl+B)"
@@ -116,9 +108,9 @@ export function RichTextEditor({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors ${
+            className={`p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors ${
               editor.isActive("italic")
-                ? "bg-indigo-600/30 text-indigo-400"
+                ? "bg-primary/20 text-primary"
                 : ""
             }`}
             title="Italic (Ctrl+I)"
@@ -129,9 +121,9 @@ export function RichTextEditor({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleUnderline().run()}
-            className={`p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors ${
+            className={`p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors ${
               editor.isActive("underline")
-                ? "bg-indigo-600/30 text-indigo-400"
+                ? "bg-primary/20 text-primary"
                 : ""
             }`}
             title="Underline (Ctrl+U)"
@@ -139,14 +131,14 @@ export function RichTextEditor({
             <UnderlineIcon className="w-3.5 h-3.5" />
           </button>
 
-          <div className="w-px h-4 bg-slate-800 mx-1" />
+          <div className="w-px h-4 bg-border mx-1" />
 
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={`p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors ${
+            className={`p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors ${
               editor.isActive("bulletList")
-                ? "bg-indigo-600/30 text-indigo-400"
+                ? "bg-primary/20 text-primary"
                 : ""
             }`}
             title="Bullet List"
@@ -157,9 +149,9 @@ export function RichTextEditor({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={`p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors ${
+            className={`p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors ${
               editor.isActive("orderedList")
-                ? "bg-indigo-600/30 text-indigo-400"
+                ? "bg-primary/20 text-primary"
                 : ""
             }`}
             title="Numbered List"
@@ -167,25 +159,24 @@ export function RichTextEditor({
             <ListOrdered className="w-3.5 h-3.5" />
           </button>
 
-          <div className="w-px h-4 bg-slate-800 mx-1" />
+          <div className="w-px h-4 bg-border mx-1" />
 
-          {/* Table Tools */}
           {!editor.isActive("table") ? (
             <button
               type="button"
               onClick={insertTable}
-              className="p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors text-xs flex items-center gap-1"
+              className="p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors text-xs flex items-center gap-1"
               title="Insert Table (3x3)"
             >
               <TableIcon className="w-3.5 h-3.5" />
               <span className="text-[10px] hidden sm:inline">Table</span>
             </button>
           ) : (
-            <div className="flex items-center gap-1 bg-slate-800/80 px-1.5 py-0.5 rounded text-[10px]">
+            <div className="flex items-center gap-1 bg-muted px-1.5 py-0.5 rounded text-[10px]">
               <button
                 type="button"
                 onClick={() => editor.chain().focus().addRowAfter().run()}
-                className="hover:text-white px-1"
+                className="hover:text-foreground px-1"
                 title="Add Row"
               >
                 +Row
@@ -193,7 +184,7 @@ export function RichTextEditor({
               <button
                 type="button"
                 onClick={() => editor.chain().focus().addColumnAfter().run()}
-                className="hover:text-white px-1"
+                className="hover:text-foreground px-1"
                 title="Add Column"
               >
                 +Col
@@ -201,7 +192,7 @@ export function RichTextEditor({
               <button
                 type="button"
                 onClick={() => editor.chain().focus().deleteTable().run()}
-                className="hover:text-red-400 px-1 text-red-400"
+                className="hover:text-destructive px-1 text-destructive"
                 title="Delete Table"
               >
                 Del
@@ -209,13 +200,12 @@ export function RichTextEditor({
             </div>
           )}
 
-          <div className="w-px h-4 bg-slate-800 mx-1" />
+          <div className="w-px h-4 bg-border mx-1" />
 
-          {/* Image */}
           <button
             type="button"
             onClick={addImage}
-            className="p-1.5 rounded hover:bg-slate-800 hover:text-white transition-colors"
+            className="p-1.5 rounded hover:bg-accent hover:text-accent-foreground transition-colors"
             title="Insert Image URL"
           >
             <ImageIcon className="w-3.5 h-3.5" />
@@ -223,7 +213,6 @@ export function RichTextEditor({
         </div>
       )}
 
-      {/* Editor Prose Area */}
       <div style={{ minHeight }} className="p-1">
         <EditorContent editor={editor} />
       </div>

@@ -79,40 +79,40 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-card border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between bg-muted/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Question Bank Repository</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-lg font-bold text-card-foreground">Question Bank Repository</h3>
+              <p className="text-xs text-muted-foreground">
                 Select questions from your library to insert into this exam draft
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 grid grid-cols-1 sm:grid-cols-12 gap-3">
+        <div className="p-4 border-b border-border bg-muted/20 grid grid-cols-1 sm:grid-cols-12 gap-3">
           <div className="sm:col-span-5 relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
             <Input
               type="text"
               placeholder="Search questions by keyword..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && fetchBank()}
-              className="pl-9 h-9 text-xs bg-slate-900 border-slate-800"
+              className="pl-9 h-9 text-xs bg-background border-input"
             />
           </div>
 
@@ -120,7 +120,7 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full h-9 px-3 rounded-lg border border-slate-800 bg-slate-900 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full h-9 px-3 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="all">All Subject Categories</option>
               {categories.map((c) => (
@@ -135,7 +135,7 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full h-9 px-3 rounded-lg border border-slate-800 bg-slate-900 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full h-9 px-3 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="all">All Question Types</option>
               <option value="multiple_choice">Multiple Choice</option>
@@ -149,14 +149,14 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
         {/* Question List Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 custom-scrollbar">
           {isPending ? (
-            <div className="py-16 text-center text-slate-400 animate-pulse text-sm">
+            <div className="py-16 text-center text-muted-foreground animate-pulse text-sm">
               Loading question bank items...
             </div>
           ) : questions.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 space-y-2">
-              <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
-              <p className="text-sm font-semibold text-white">No bank questions found</p>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <div className="py-16 text-center text-muted-foreground space-y-2">
+              <BookOpen className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+              <p className="text-sm font-semibold text-foreground">No bank questions found</p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Questions are automatically synchronized to your bank when exams are published.
               </p>
             </div>
@@ -169,15 +169,15 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
                   onClick={() => toggleSelect(q.id)}
                   className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3.5 ${
                     isSelected
-                      ? "bg-indigo-950/40 border-indigo-500 shadow-md shadow-indigo-950"
-                      : "bg-slate-950/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60"
+                      ? "bg-primary/10 border-primary shadow-sm"
+                      : "bg-card border-border hover:border-border/80 hover:bg-muted/40"
                   }`}
                 >
                   <div
                     className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                       isSelected
-                        ? "bg-indigo-600 border-indigo-500 text-white"
-                        : "border-slate-700 bg-slate-800"
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-border bg-muted"
                     }`}
                   >
                     {isSelected && <Check className="w-3.5 h-3.5" />}
@@ -196,12 +196,12 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
                           {q.categoryName}
                         </span>
                       )}
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-[11px] text-muted-foreground font-mono">
                         {q.points} {Number(q.points) === 1 ? "pt" : "pts"}
                       </span>
                     </div>
 
-                    <p className="text-sm font-medium text-slate-200 line-clamp-2">
+                    <p className="text-sm font-medium text-foreground line-clamp-2">
                       {q.prompt}
                     </p>
 
@@ -210,9 +210,9 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
                         {q.tags.map((t: string, i: number) => (
                           <span
                             key={i}
-                            className="text-[10px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/60 flex items-center gap-1"
+                            className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border flex items-center gap-1"
                           >
-                            <Tag className="w-2.5 h-2.5 text-indigo-400" />
+                            <Tag className="w-2.5 h-2.5 text-primary" />
                             {t}
                           </span>
                         ))}
@@ -226,8 +226,8 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
-          <span className="text-xs text-slate-400">
+        <div className="p-4 border-t border-border bg-muted/30 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
             {selectedIds.size} of {questions.length} questions selected
           </span>
           <div className="flex items-center gap-2">
@@ -238,7 +238,7 @@ export function QuestionBankPicker({ isOpen, onClose }: QuestionBankPickerProps)
               size="sm"
               disabled={selectedIds.size === 0 || isPending}
               onClick={handleInsertSelected}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
+              className="font-semibold gap-1.5"
             >
               <Plus className="w-4 h-4" />
               Insert {selectedIds.size} Question{selectedIds.size !== 1 ? "s" : ""}

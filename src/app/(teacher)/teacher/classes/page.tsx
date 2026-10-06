@@ -65,15 +65,15 @@ export default function ClassesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/teacher" className="text-slate-400 hover:text-white p-1">
+          <Link href="/teacher" className="text-muted-foreground hover:text-foreground p-1">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2.5">
-              <GraduationCap className="w-7 h-7 text-indigo-400" />
+            <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight flex items-center gap-2.5">
+              <GraduationCap className="w-7 h-7 text-primary" />
               Class Rosters & Sections
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
               Manage student enrollments, sections, and roster-based exam participation tracking
             </p>
           </div>
@@ -81,7 +81,7 @@ export default function ClassesPage() {
 
         <Button
           onClick={() => setIsCreateOpen(true)}
-          className="font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white"
+          className="font-semibold gap-1.5"
         >
           <Plus className="w-4 h-4" />
           Create New Class
@@ -90,20 +90,20 @@ export default function ClassesPage() {
 
       {/* Classes List Grid */}
       {isPending ? (
-        <div className="py-20 text-center text-slate-400 animate-pulse">
+        <div className="py-20 text-center text-muted-foreground animate-pulse">
           Loading student classes...
         </div>
       ) : classList.length === 0 ? (
-        <div className="py-20 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-950/40 space-y-3">
-          <Users className="w-12 h-12 text-slate-600 mx-auto opacity-50" />
-          <h3 className="text-base font-bold text-white">No Classes Created Yet</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
+        <div className="py-20 text-center border border-dashed border-border rounded-2xl bg-muted/20 space-y-3">
+          <Users className="w-12 h-12 text-muted-foreground mx-auto opacity-50" />
+          <h3 className="text-base font-bold text-foreground">No Classes Created Yet</h3>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
             Create classes to manage student rosters and calculate accurate participation metrics such as students who have not yet taken scheduled exams.
           </p>
           <Button
             size="sm"
             onClick={() => setIsCreateOpen(true)}
-            className="mt-2 bg-indigo-600 text-white font-semibold"
+            className="mt-2 font-semibold"
           >
             Create Your First Class
           </Button>
@@ -113,7 +113,7 @@ export default function ClassesPage() {
           {classList.map((cls) => (
             <Card
               key={cls.id}
-              className="border-slate-800 bg-slate-900/80 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg"
+              className="hover:border-primary/50 transition-all flex flex-col justify-between shadow-sm"
             >
               <CardHeader className="p-5 pb-3">
                 <div className="flex items-center justify-between gap-2 mb-1">
@@ -125,24 +125,24 @@ export default function ClassesPage() {
                     <span />
                   )}
                   {cls.academicYear && (
-                    <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-indigo-400" />
+                    <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-primary" />
                       {cls.academicYear}
                     </span>
                   )}
                 </div>
-                <CardTitle className="text-lg text-white font-bold">{cls.name}</CardTitle>
-                <CardDescription className="text-xs text-slate-400">
+                <CardTitle className="text-lg text-foreground font-bold">{cls.name}</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
                   {cls.subject || "No subject specified"}
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="p-5 pt-0">
-                <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                <div className="pt-4 border-t border-border flex items-center justify-between">
                   <Link href={`/teacher/classes/${cls.id}`} className="w-full">
-                    <Button variant="outline" size="sm" className="w-full justify-between text-xs border-slate-700 hover:text-white">
+                    <Button variant="outline" size="sm" className="w-full justify-between text-xs">
                       <span>View Class Roster</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
+                      <ArrowRight className="w-3.5 h-3.5 text-primary" />
                     </Button>
                   </Link>
                 </div>
@@ -154,19 +154,19 @@ export default function ClassesPage() {
 
       {/* Create Class Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
           <form
             onSubmit={handleCreate}
-            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fade-in"
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-card-foreground"
           >
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-800">
-              <GraduationCap className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Create Class & Section</h3>
+            <div className="flex items-center gap-2.5 pb-2 border-b border-border">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-card-foreground">Create Class & Section</h3>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">
+                <label className="font-semibold text-foreground block mb-1">
                   Class / Course Name *
                 </label>
                 <Input
@@ -174,48 +174,48 @@ export default function ClassesPage() {
                   placeholder="e.g. Grade 10 - Advanced Physics"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-xs"
+                  className="text-xs"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Section</label>
+                  <label className="font-semibold text-foreground block mb-1">Section</label>
                   <Input
                     type="text"
                     placeholder="e.g. Section Diamond"
                     value={section}
                     onChange={(e) => setSection(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-xs"
+                    className="text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Subject</label>
+                  <label className="font-semibold text-foreground block mb-1">Subject</label>
                   <Input
                     type="text"
                     placeholder="e.g. Physics"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-xs"
+                    className="text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">Academic Year</label>
+                <label className="font-semibold text-foreground block mb-1">Academic Year</label>
                 <Input
                   type="text"
                   placeholder="e.g. 2026-2027"
                   value={academicYear}
                   onChange={(e) => setAcademicYear(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-xs"
+                  className="text-xs"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
@@ -224,7 +224,7 @@ export default function ClassesPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="bg-indigo-600 text-white font-semibold">
+              <Button type="submit" size="sm" className="font-semibold">
                 Create Class
               </Button>
             </div>

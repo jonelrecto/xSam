@@ -15,6 +15,7 @@ async function generateTemplate() {
   });
 
   sheet.columns = [
+    { header: "order", key: "order", width: 10 },
     { header: "type", key: "type", width: 18 },
     { header: "prompt", key: "prompt", width: 45 },
     { header: "opt_a", key: "opt_a", width: 22 },
@@ -42,6 +43,7 @@ async function generateTemplate() {
 
   // Sample Rows
   sheet.addRow({
+    order: 1,
     type: "multiple_choice",
     prompt: "What is the primary function of mitochondria in eukaryotic cells?",
     opt_a: "Protein synthesis",
@@ -58,6 +60,7 @@ async function generateTemplate() {
   });
 
   sheet.addRow({
+    order: 2,
     type: "true_false",
     prompt: "HTTP is a stateful communication protocol.",
     opt_a: "",
@@ -74,6 +77,7 @@ async function generateTemplate() {
   });
 
   sheet.addRow({
+    order: 3,
     type: "identification",
     prompt: "What is the capital city of the Philippines?",
     opt_a: "",
@@ -90,6 +94,7 @@ async function generateTemplate() {
   });
 
   sheet.addRow({
+    order: 4,
     type: "essay",
     prompt: "Explain the implications of quantum computing on modern cryptographic algorithms.",
     opt_a: "",
@@ -105,9 +110,9 @@ async function generateTemplate() {
     instructions: "Provide a structured 3-paragraph explanation.",
   });
 
-  // Add Data Validation dropdown on type column (rows 2 to 250)
+  // Add Data Validation dropdown on type column B (rows 2 to 250)
   for (let r = 2; r <= 250; r++) {
-    sheet.getCell(`A${r}`).dataValidation = {
+    sheet.getCell(`B${r}`).dataValidation = {
       type: "list",
       allowBlank: false,
       formulae: ['"multiple_choice,true_false,identification,essay"'],
@@ -135,6 +140,11 @@ async function generateTemplate() {
 
   const guide = [
     {
+      field: "order",
+      required: "No",
+      desc: "Display order index (e.g. 1, 2, 3...). If omitted, questions are numbered sequentially.",
+    },
+    {
       field: "type",
       required: "Yes",
       desc: "Must be: multiple_choice, true_false, identification, or essay.",
@@ -157,12 +167,12 @@ async function generateTemplate() {
     {
       field: "points",
       required: "No",
-      desc: "Point weight (positive number between 0.25 and 100). Default is 1.0.",
+      desc: "Point weight (positive number between 0.01 and 100). Default is 1.0.",
     },
     {
       field: "tags",
       required: "No",
-      desc: "Comma-separated topics or grade levels (e.g. Algebra, Grade 10).",
+      desc: "Comma-separated topics or grade levels (e.g. Biology, Grade 10).",
     },
     {
       field: "context",
@@ -178,14 +188,19 @@ async function generateTemplate() {
 
   guide.forEach((g) => instructionsSheet.addRow(g));
 
-  const outputDir = path.join(process.cwd(), "public", "templates");
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  const outputDirs = [
+    path.join(process.cwd(), "public", "templates"),
+    path.join(process.cwd(), "apps", "web", "public", "templates"),
+  ];
 
-  const outputPath = path.join(outputDir, "exam_import_template.xlsx");
-  await workbook.xlsx.writeFile(outputPath);
-  console.log(`Generated template at: ${outputPath}`);
+  for (const dir of outputDirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const outputPath = path.join(dir, "exam_import_template.xlsx");
+    await workbook.xlsx.writeFile(outputPath);
+    console.log(`Generated template at: ${outputPath}`);
+  }
 }
 
 generateTemplate().catch((err) => {

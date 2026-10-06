@@ -65,19 +65,19 @@ export default async function ExamOverviewPage({ params }: PageProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/teacher" className="text-slate-400 hover:text-white p-1">
+          <Link href="/teacher" className="text-muted-foreground hover:text-foreground p-1">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ExamStatusBadge status={displayStatus} />
               {exam.accessCode && (
-                <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800/60 px-2 py-0.5 rounded">
+                <span className="text-xs font-mono font-bold text-primary bg-primary/10 border border-primary/25 px-2 py-0.5 rounded">
                   Code: {exam.accessCode}
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">
               {exam.title}
             </h1>
           </div>
@@ -86,15 +86,15 @@ export default async function ExamOverviewPage({ params }: PageProps) {
         <div className="flex items-center gap-2">
           {isEditable ? (
             <Link href={`/teacher/exams/${exam.id}/questions`}>
-              <Button className="font-semibold gap-2 bg-indigo-600 hover:bg-indigo-500 text-white">
+              <Button className="font-semibold gap-2">
                 <Edit3 className="w-4 h-4" />
                 {isPublished ? "Edit Questions (Pre-Start)" : "Open Draft Studio"}
               </Button>
             </Link>
           ) : (
             <Link href={`/teacher/exams/${exam.id}/questions`}>
-              <Button variant="outline" className="font-semibold gap-2 border-slate-700 text-slate-300">
-                <Lock className="w-4 h-4 text-amber-400" />
+              <Button variant="outline" className="font-semibold gap-2 border-border text-foreground">
+                <Lock className="w-4 h-4 text-amber-500" />
                 View Question Paper
               </Button>
             </Link>

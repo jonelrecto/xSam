@@ -139,22 +139,22 @@ export default function GradingQueuePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href={`/teacher/exams/${examId}`} className="text-slate-400 hover:text-white p-1">
+          <Link href={`/teacher/exams/${examId}`} className="text-muted-foreground hover:text-foreground p-1">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-              <Layers className="w-6 h-6 text-indigo-400" />
+            <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight flex items-center gap-2">
+              <Layers className="w-6 h-6 text-primary" />
               Grading Queue
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Review and score essays and subjective student answers
             </p>
           </div>
         </div>
 
         {/* View Mode Toggle */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border">
           <button
             type="button"
             onClick={() => {
@@ -165,8 +165,8 @@ export default function GradingQueuePage() {
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               viewMode === "by_question"
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-950"
-                : "text-slate-400 hover:text-white"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             By Question
@@ -181,8 +181,8 @@ export default function GradingQueuePage() {
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               viewMode === "by_student"
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-950"
-                : "text-slate-400 hover:text-white"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             By Student
@@ -191,16 +191,16 @@ export default function GradingQueuePage() {
       </div>
 
       {/* Live Grading Progress Bar */}
-      <Card className="border-slate-800 bg-slate-900/60 shadow-lg">
+      <Card className="shadow-sm">
         <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="space-y-1 w-full sm:w-auto">
-            <span className="text-xs font-bold text-white flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-bold text-foreground flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               Evaluation Progress: {gradedCount} of {queue.length} items checked
             </span>
-            <div className="w-full sm:w-72 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div className="w-full sm:w-72 h-2 rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-300"
+                className="h-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-300"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -224,12 +224,12 @@ export default function GradingQueuePage() {
                   onClick={() => setSelectedQuestionOrder(q.order)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 border transition-all flex items-center gap-2 ${
                     isSelected
-                      ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-950"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                      ? "bg-primary border-primary text-primary-foreground shadow-md shadow-primary/20"
+                      : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
                   }`}
                 >
                   <span>Question #{q.order}</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-slate-950/60 text-[10px] font-mono">
+                  <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-mono">
                     {q.count}
                   </span>
                 </button>
@@ -244,12 +244,12 @@ export default function GradingQueuePage() {
                   onClick={() => setSelectedStudentId(s.id)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 border transition-all flex items-center gap-2 ${
                     isSelected
-                      ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-950"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                      ? "bg-primary border-primary text-primary-foreground shadow-md shadow-primary/20"
+                      : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
                   }`}
                 >
                   <span>{s.name}</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-slate-950/60 text-[10px] font-mono">
+                  <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-mono">
                     {s.count}
                   </span>
                 </button>
@@ -259,14 +259,14 @@ export default function GradingQueuePage() {
 
       {/* Main Grading Stream */}
       {isPending ? (
-        <div className="py-20 text-center text-slate-400 animate-pulse">
+        <div className="py-20 text-center text-muted-foreground animate-pulse">
           Loading submission answers...
         </div>
       ) : activeItems.length === 0 ? (
-        <div className="py-20 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-950/40 space-y-2">
-          <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-          <h3 className="text-base font-bold text-white">All Items Graded!</h3>
-          <p className="text-xs text-slate-400">
+        <div className="py-20 text-center border border-dashed border-border rounded-2xl bg-muted/20 space-y-2">
+          <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400 mx-auto" />
+          <h3 className="text-base font-bold text-foreground">All Items Graded!</h3>
+          <p className="text-xs text-muted-foreground">
             There are no pending subjective answers requiring manual review for this selection.
           </p>
         </div>
@@ -281,16 +281,16 @@ export default function GradingQueuePage() {
             return (
               <Card
                 key={key}
-                className="border-slate-800 bg-slate-900/80 shadow-md hover:border-slate-700/80 transition-all"
+                className="shadow-sm hover:border-primary/50 transition-all"
               >
-                <CardHeader className="p-4 bg-slate-950/40 border-b border-slate-800 flex flex-row items-center justify-between">
+                <CardHeader className="p-4 bg-muted/30 border-b border-border flex flex-row items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Badge variant="default" className="text-[10px] font-mono">
                       #{item.questionOrder}
                     </Badge>
-                    <span className="text-xs font-bold text-white">{item.studentName}</span>
+                    <span className="text-xs font-bold text-foreground">{item.studentName}</span>
                     {item.studentNumber && (
-                      <span className="text-[10px] font-mono text-slate-400">
+                      <span className="text-[10px] font-mono text-muted-foreground">
                         ({item.studentNumber})
                       </span>
                     )}
@@ -298,7 +298,7 @@ export default function GradingQueuePage() {
 
                   <div className="flex items-center gap-2">
                     {isSaved && (
-                      <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                         <Check className="w-3.5 h-3.5" /> Graded ({item.pointsAwarded}/{item.maxPoints} pts)
                       </span>
                     )}
@@ -307,8 +307,8 @@ export default function GradingQueuePage() {
 
                 <CardContent className="p-5 space-y-4">
                   {/* Prompt Text */}
-                  <div className="p-3.5 rounded-xl bg-slate-950/40 border border-slate-800/80 text-xs text-slate-300">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  <div className="p-3.5 rounded-xl bg-muted/40 border border-border text-xs text-foreground/90">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">
                       Prompt Statement:
                     </span>
                     <p>{item.prompt}</p>
@@ -316,18 +316,18 @@ export default function GradingQueuePage() {
 
                   {/* Student's Written Response */}
                   <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                       Student Response:
                     </span>
-                    <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-sm text-slate-100 font-sans leading-relaxed whitespace-pre-wrap">
-                      {item.answerText ? item.answerText : <em className="text-slate-500">No response provided</em>}
+                    <div className="p-4 rounded-xl bg-muted/20 border border-border text-sm text-foreground font-sans leading-relaxed whitespace-pre-wrap">
+                      {item.answerText ? item.answerText : <em className="text-muted-foreground">No response provided</em>}
                     </div>
                   </div>
 
                   {/* Rubric Score Assign Bar */}
-                  <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <div className="p-3.5 rounded-xl bg-muted/30 border border-border flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-300">
+                      <span className="text-xs font-bold text-foreground">
                         Assign Score (Max {item.maxPoints} pts):
                       </span>
                       <Input
@@ -340,7 +340,7 @@ export default function GradingQueuePage() {
                           const val = Number(e.target.value);
                           setScores((prev) => ({ ...prev, [key]: val }));
                         }}
-                        className="w-20 h-8 text-xs font-mono bg-slate-900 border-slate-700 text-right"
+                        className="w-20 h-8 text-xs font-mono bg-background text-right"
                       />
                     </div>
 
@@ -354,7 +354,7 @@ export default function GradingQueuePage() {
                           setScores((prev) => ({ ...prev, [key]: item.maxPoints }));
                           handleSaveGrade(item, item.maxPoints);
                         }}
-                        className="h-8 text-xs border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+                        className="h-8 text-xs border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
                       >
                         Full Credit ({item.maxPoints})
                       </Button>
@@ -367,7 +367,7 @@ export default function GradingQueuePage() {
                           setScores((prev) => ({ ...prev, [key]: 0 }));
                           handleSaveGrade(item, 0);
                         }}
-                        className="h-8 text-xs border-red-500/40 text-red-300 hover:bg-red-500/10"
+                        className="h-8 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
                       >
                         Zero (0)
                       </Button>
@@ -377,7 +377,7 @@ export default function GradingQueuePage() {
                         size="sm"
                         disabled={isSaving}
                         onClick={() => handleSaveGrade(item, currentScore)}
-                        className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
+                        className="h-8 text-xs font-semibold gap-1.5"
                       >
                         <Save className="w-3.5 h-3.5" />
                         {isSaving ? "Saving..." : "Save Score"}

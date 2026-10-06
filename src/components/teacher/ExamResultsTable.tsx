@@ -67,7 +67,7 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="flex items-center gap-1 hover:text-white"
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
           >
             Student
             <ArrowUpDown className="w-3 h-3" />
@@ -75,8 +75,8 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         ),
         cell: ({ row }) => (
           <div>
-            <span className="font-bold text-white block">{row.original.studentName}</span>
-            <span className="text-[11px] text-slate-400 font-mono">
+            <span className="font-bold text-foreground block">{row.original.studentName}</span>
+            <span className="text-[11px] text-muted-foreground font-mono">
               {row.original.studentNumber || row.original.studentEmail}
             </span>
           </div>
@@ -99,7 +99,7 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         header: ({ column }) => (
           <button
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="flex items-center gap-1 hover:text-white"
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
           >
             Score & %
             <ArrowUpDown className="w-3 h-3" />
@@ -108,20 +108,20 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         cell: ({ row }) => {
           const { score, maxScore, percentage, fullyGraded } = row.original;
           if (score === null || maxScore === null) {
-            return <span className="text-slate-500 font-mono text-xs">—</span>;
+            return <span className="text-muted-foreground font-mono text-xs">—</span>;
           }
           return (
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-white text-xs">
+                <span className="font-mono font-bold text-foreground text-xs">
                   {score} / {maxScore}
                 </span>
-                <span className="text-xs text-indigo-400 font-mono font-bold">
+                <span className="text-xs text-primary font-mono font-bold">
                   ({percentage}%)
                 </span>
               </div>
               {!fullyGraded && (
-                <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-0.5">
                   <Clock className="w-2.5 h-2.5" /> Pending Check
                 </span>
               )}
@@ -137,14 +137,14 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
           const total = Object.values(summary).reduce((a, b) => a + Number(b), 0);
           if (total === 0) {
             return (
-              <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Clean
               </span>
             );
           }
           return (
             <div className="flex items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded bg-rose-950/60 border border-rose-500/40 text-rose-300 font-mono text-[10px] font-bold flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 font-mono text-[10px] font-bold flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3" />
                 {total} {total === 1 ? "Event" : "Events"}
               </span>
@@ -157,9 +157,9 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         header: "Submitted",
         cell: ({ row }) => {
           const sub = row.original.submittedAt;
-          if (!sub) return <span className="text-slate-500 text-xs">—</span>;
+          if (!sub) return <span className="text-muted-foreground text-xs">—</span>;
           return (
-            <span className="text-xs text-slate-300 font-mono">
+            <span className="text-xs text-muted-foreground font-mono">
               {new Date(sub).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           );
@@ -171,7 +171,7 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         cell: ({ row }) => (
           <div className="flex justify-end">
             <Link href={`/teacher/exams/${examId}/grading`}>
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-indigo-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:text-primary/80">
                 Grade / Review
               </Button>
             </Link>
@@ -218,19 +218,19 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 max-w-md">
           <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-2.5" />
             <Input
               placeholder="Search students..."
               value={globalFilter ?? ""}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-8 h-8 text-xs bg-slate-950/80 border-slate-800"
+              className="pl-8 h-8 text-xs bg-background border-input"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-8 px-2.5 rounded-lg border border-slate-800 bg-slate-950/80 text-xs text-slate-300 focus:outline-none"
+            className="h-8 px-2.5 rounded-lg border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="all">All Statuses</option>
             <option value="submitted">Submitted</option>
@@ -243,14 +243,14 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
             variant="outline"
             size="sm"
             onClick={handleDownloadCsv}
-            className="h-8 text-xs gap-1.5 border-slate-700 text-slate-300 hover:text-white"
+            className="h-8 text-xs gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
             Export CSV
           </Button>
 
           <Link href={`/teacher/exams/${examId}/grading`}>
-            <Button size="sm" className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
+            <Button size="sm" className="h-8 text-xs gap-1.5 font-semibold">
               Open Grading Queue
             </Button>
           </Link>
@@ -258,12 +258,12 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
       </div>
 
       {/* Table Container */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/80 overflow-hidden shadow-lg">
+      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-mono text-[10px] uppercase">
+                <tr key={headerGroup.id} className="border-b border-border bg-muted/40 text-muted-foreground font-mono text-[10px] uppercase">
                   {headerGroup.headers.map((header) => (
                     <th key={header.id} className="py-3 px-4">
                       {header.isPlaceholder
@@ -274,16 +274,16 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
                 </tr>
               ))}
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-border">
               {table.getRowModel().rows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="py-12 text-center text-slate-500">
+                  <td colSpan={columns.length} className="py-12 text-center text-muted-foreground">
                     No student exam sessions found matching your filters.
                   </td>
                 </tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={row.id} className="hover:bg-muted/30 transition-colors">
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="py-3 px-4">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -297,7 +297,7 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
         </div>
 
         {/* Pagination Bar */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
+        <div className="p-3 border-t border-border bg-muted/30 flex items-center justify-between text-xs text-muted-foreground">
           <span>
             Showing {table.getRowModel().rows.length} of {filteredData.length} records
           </span>
@@ -311,7 +311,7 @@ export function ExamResultsTable({ examId, results }: ExamResultsTableProps) {
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </Button>
-            <span className="px-2 font-mono text-[11px]">
+            <span className="px-2 font-mono text-[11px] text-foreground">
               Page {table.getState().pagination.pageIndex + 1} of{" "}
               {table.getPageCount() || 1}
             </span>

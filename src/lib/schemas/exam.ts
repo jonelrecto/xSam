@@ -24,6 +24,7 @@ export const examDetailsSchema = z
     requireCamera: z.boolean().default(false),
     showScoreOnSubmit: z.boolean().default(false),
     enforceFullscreen: z.boolean().default(true),
+    restrictInput: z.boolean().default(false),
   })
   .refine(
     (v) => {
@@ -54,19 +55,37 @@ export type ExamDetailsInput = z.infer<typeof examDetailsSchema>;
 
 // Lenient draft schema for in-progress autosaving
 export const draftQuestionSchema = z.object({
-  id: z.string().uuid().optional(), // Real database UUID if existing
+  id: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => (val ? val : undefined)), // Real database UUID if existing
   tempId: z.string(), // Stable client identification key
-  bankQuestionId: z.string().uuid().optional().nullable(),
-  categoryId: z.string().uuid().optional().nullable(),
-  order: z.number().int().positive(),
+  bankQuestionId: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => (val ? val : undefined)),
+  categoryId: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => (val ? val : undefined)),
+  order: z.coerce.number().int().min(0),
   type: questionTypeEnum,
   prompt: z.string().max(10000),
   promptJson: z.any().optional().nullable(),
-  options: z.array(z.string().max(1000)).max(6).nullable(),
-  answers: z.array(z.string().max(1000)).max(20),
-  answerSource: z.enum(["provided", "ai_inferred", "missing"]),
-  points: z.number().positive().max(100),
-  sourcePage: z.number().int().positive().optional(),
+  options: z.array(z.string().max(1000)).max(6).nullable().optional(),
+  answers: z.array(z.string().max(1000)).max(20).default([]),
+  answerSource: z.enum(["provided", "ai_inferred", "missing"]).default("provided"),
+  points: z.coerce.number().min(0).max(100).default(1),
+  sourcePage: z.coerce.number().int().min(0).optional().nullable().or(z.literal("")).transform((val) => (typeof val === "number" ? val : undefined)),
   warnings: z.array(z.string().max(300)).max(20).default([]),
   tags: z.array(z.string().max(50)).default([]),
   confirmed: z.boolean().default(false),

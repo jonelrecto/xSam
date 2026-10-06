@@ -6,19 +6,14 @@ import { importDocumentAction } from "@/app/actions/import";
 import type { DraftQuestion } from "@/lib/schemas/exam";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   FileText,
   UploadCloud,
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  FileCheck2,
-  ArrowRight,
   SplitSquareVertical,
   X,
-  Layers,
-  HelpCircle,
 } from "lucide-react";
 
 interface DocumentImportModalProps {
@@ -59,14 +54,15 @@ export function DocumentImportModal({
 
     setStep("processing");
     setErrorMsg(null);
-    setStatusMsg("Reading document buffer...");
-
-    const formData = new FormData();
-    formData.append("file", file);
+    setStatusMsg("Converting document into server payload...");
 
     try {
-      setStatusMsg("Extracting text and structure (PDF/Word)...");
-      const res = await importDocumentAction(examId, formData);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("examId", examId);
+
+      setStatusMsg("Extracting text and structure with AI pipeline...");
+      const res = await importDocumentAction(formData);
 
       if (!res.ok) {
         setErrorMsg(res.error || "Failed to extract questions.");
@@ -75,7 +71,7 @@ export function DocumentImportModal({
       }
 
       setStatusMsg("Parsing questions and inferring answer keys...");
-      setExtractedQuestions(res.questions);
+      setExtractedQuestions(res.questions as DraftQuestion[]);
       setSourceText(res.previewText);
       setQuotaInfo({ used: res.quotaUsed, remaining: res.quotaRemaining });
       setStep("review");
@@ -98,22 +94,22 @@ export function DocumentImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 sm:p-6 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 animate-fade-in">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between bg-muted/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary/70 flex items-center justify-center text-primary-foreground shadow-sm">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <h3 className="text-lg font-bold text-card-foreground flex items-center gap-2">
                 AI Document Question Extraction
                 <Badge variant="default" className="text-[10px] font-mono">
                   Phase 3 Pipeline
                 </Badge>
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Upload syllabus, quiz, or test papers (.pdf, .docx, .txt) with automatic key detection
               </p>
             </div>
@@ -121,7 +117,7 @@ export function DocumentImportModal({
 
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -130,8 +126,8 @@ export function DocumentImportModal({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {errorMsg && (
-            <div className="mb-4 p-3.5 rounded-xl bg-red-950/60 border border-red-500/30 text-red-300 text-xs flex items-start gap-2.5 animate-fade-in">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="mb-4 p-3.5 rounded-xl bg-destructive/15 border border-destructive/30 text-destructive text-xs flex items-start gap-2.5 animate-fade-in font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -141,16 +137,16 @@ export function DocumentImportModal({
             <div className="space-y-6 max-w-xl mx-auto py-8">
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="p-8 rounded-2xl border-2 border-dashed border-slate-700 hover:border-indigo-500/80 bg-slate-950/40 text-center cursor-pointer transition-all space-y-3"
+                className="p-8 rounded-2xl border-2 border-dashed border-border hover:border-primary/80 bg-muted/20 text-center cursor-pointer transition-all space-y-3"
               >
-                <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center mx-auto">
                   <UploadCloud className="w-7 h-7" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-white">
+                  <p className="text-sm font-bold text-card-foreground">
                     {file ? file.name : "Click to select or drag PDF / Word file"}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Supports Adobe PDF (.pdf), Microsoft Word (.docx), and Plain Text (.txt)
                   </p>
                 </div>
@@ -163,8 +159,8 @@ export function DocumentImportModal({
                 />
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs space-y-2 text-slate-400">
-                <span className="font-bold text-slate-200 uppercase tracking-wider text-[11px] block">
+              <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs space-y-2 text-muted-foreground">
+                <span className="font-bold text-card-foreground uppercase tracking-wider text-[11px] block">
                   Document Processing Guidelines:
                 </span>
                 <ul className="list-disc list-inside space-y-1">
@@ -182,7 +178,7 @@ export function DocumentImportModal({
                   size="sm"
                   disabled={!file}
                   onClick={handleStartExtraction}
-                  className="font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="font-semibold gap-1.5"
                 >
                   <Sparkles className="w-4 h-4" />
                   Extract Questions with AI
@@ -194,12 +190,12 @@ export function DocumentImportModal({
           {/* STEP 2: PROCESSING */}
           {step === "processing" && (
             <div className="py-16 text-center space-y-6 max-w-md mx-auto">
-              <div className="w-16 h-16 rounded-3xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center mx-auto animate-pulse">
+              <div className="w-16 h-16 rounded-3xl bg-primary/10 border border-primary/30 text-primary flex items-center justify-center mx-auto animate-pulse">
                 <Sparkles className="w-8 h-8 animate-spin" />
               </div>
               <div className="space-y-2">
-                <h4 className="text-lg font-bold text-white">Analyzing Document</h4>
-                <p className="text-xs text-slate-400">{statusMsg}</p>
+                <h4 className="text-lg font-bold text-card-foreground">Analyzing Document</h4>
+                <p className="text-xs text-muted-foreground">{statusMsg}</p>
               </div>
             </div>
           )}
@@ -207,14 +203,14 @@ export function DocumentImportModal({
           {/* STEP 3: SIDE-BY-SIDE SPLIT SCREEN REVIEW */}
           {step === "review" && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-muted/40 border border-border">
                 <div className="flex items-center gap-3">
                   <Badge variant="success">
                     {extractedQuestions.length} Questions Extracted
                   </Badge>
                   {quotaInfo && (
-                    <span className="text-xs text-slate-400">
-                      Teacher Quota: <strong className="text-indigo-400">{quotaInfo.remaining}</strong> imports remaining today
+                    <span className="text-xs text-muted-foreground">
+                      Teacher Quota: <strong className="text-primary">{quotaInfo.remaining}</strong> imports remaining today
                     </span>
                   )}
                 </div>
@@ -223,7 +219,7 @@ export function DocumentImportModal({
                   <select
                     value={loadMode}
                     onChange={(e) => setLoadMode(e.target.value as any)}
-                    className="text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-300"
+                    className="text-xs bg-background border border-input rounded-lg px-2.5 py-1.5 text-foreground"
                   >
                     <option value="append">Append to existing draft</option>
                     <option value="replace">Replace all draft items</option>
@@ -232,7 +228,7 @@ export function DocumentImportModal({
                   <Button
                     size="sm"
                     onClick={handleConfirmImport}
-                    className="font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
+                    className="font-semibold gap-1.5"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Confirm & Load Into Studio
@@ -243,26 +239,26 @@ export function DocumentImportModal({
               {/* Split Screen Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[500px]">
                 {/* Left Pane: Source Document Text */}
-                <div className="border border-slate-800 rounded-xl bg-slate-950/80 p-4 flex flex-col h-[520px]">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-indigo-400" />
+                <div className="border border-border rounded-xl bg-muted/20 p-4 flex flex-col h-[520px]">
+                  <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-primary" />
                       Original Document Source
                     </span>
-                    <span className="text-[11px] font-mono text-slate-500">
+                    <span className="text-[11px] font-mono text-muted-foreground">
                       {file?.name}
                     </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-slate-300 leading-relaxed pr-2">
+                  <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-xs text-foreground leading-relaxed pr-2">
                     {sourceText || "No text preview available."}
                   </div>
                 </div>
 
                 {/* Right Pane: Editable Extracted Questions */}
-                <div className="border border-slate-800 rounded-xl bg-slate-950/40 p-4 flex flex-col h-[520px]">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <SplitSquareVertical className="w-4 h-4 text-cyan-400" />
+                <div className="border border-border rounded-xl bg-muted/10 p-4 flex flex-col h-[520px]">
+                  <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <SplitSquareVertical className="w-4 h-4 text-primary" />
                       Parsed Questions & AI Answers
                     </span>
                     <Badge variant="warning" className="text-[10px]">
@@ -274,10 +270,10 @@ export function DocumentImportModal({
                     {extractedQuestions.map((q, idx) => (
                       <div
                         key={idx}
-                        className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/90 space-y-2 text-xs"
+                        className="p-3.5 rounded-xl border border-border bg-card shadow-sm space-y-2 text-xs"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded">
+                          <span className="font-mono font-bold text-card-foreground bg-muted px-2 py-0.5 rounded">
                             #{idx + 1} • {q.type.replace("_", " ").toUpperCase()}
                           </span>
                           <Badge variant="warning" className="text-[9px] gap-1">
@@ -287,7 +283,7 @@ export function DocumentImportModal({
                         </div>
 
                         {q.instructions && (
-                          <p className="text-[10px] text-indigo-300 bg-indigo-950/40 p-1.5 rounded border border-indigo-500/20 font-sans">
+                          <p className="text-[10px] text-primary bg-primary/10 p-1.5 rounded border border-primary/20 font-sans">
                             {q.instructions}
                           </p>
                         )}
@@ -298,7 +294,7 @@ export function DocumentImportModal({
                           onChange={(e) =>
                             updateQuestionField(idx, { prompt: e.target.value })
                           }
-                          className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          className="w-full bg-background border border-input rounded p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         />
 
                         {/* Options if Multiple Choice */}
@@ -312,13 +308,13 @@ export function DocumentImportModal({
                                   <span
                                     className={`w-5 h-5 rounded text-[10px] font-mono font-bold flex items-center justify-center border ${
                                       isKey
-                                        ? "bg-emerald-600 border-emerald-500 text-white"
-                                        : "bg-slate-800 border-slate-700 text-slate-400"
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "bg-muted text-muted-foreground border-border"
                                     }`}
                                   >
                                     {letter}
                                   </span>
-                                  <span className="text-slate-300 truncate">{opt}</span>
+                                  <span className="text-card-foreground truncate">{opt}</span>
                                 </div>
                               );
                             })}
@@ -327,14 +323,14 @@ export function DocumentImportModal({
 
                         {/* Identification Answers */}
                         {q.type === "identification" && (
-                          <div className="text-[11px] text-indigo-300">
+                          <div className="text-[11px] text-primary">
                             <strong>Accepted:</strong> {q.answers.join(" | ") || "None set"}
                           </div>
                         )}
 
                         {/* Warnings */}
-                        {q.warnings.length > 0 && (
-                          <p className="text-[10px] text-amber-300/80">
+                        {q.warnings && q.warnings.length > 0 && (
+                          <p className="text-[10px] text-amber-700 dark:text-amber-300">
                             ⚠️ {q.warnings[0]}
                           </p>
                         )}

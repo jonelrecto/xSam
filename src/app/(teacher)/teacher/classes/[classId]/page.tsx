@@ -60,7 +60,7 @@ export default function ClassDetailsPage() {
 
   if (!classData && isPending) {
     return (
-      <div className="max-w-5xl mx-auto py-20 text-center text-slate-400 animate-pulse">
+      <div className="max-w-5xl mx-auto py-20 text-center text-muted-foreground animate-pulse">
         Loading class roster...
       </div>
     );
@@ -68,7 +68,7 @@ export default function ClassDetailsPage() {
 
   if (!classData && !isPending) {
     return (
-      <div className="max-w-5xl mx-auto py-20 text-center text-slate-400 space-y-3">
+      <div className="max-w-5xl mx-auto py-20 text-center text-muted-foreground space-y-3">
         <p>Class not found.</p>
         <Link href="/teacher/classes">
           <Button variant="outline">Return to Classes</Button>
@@ -82,7 +82,7 @@ export default function ClassDetailsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/teacher/classes" className="text-slate-400 hover:text-white p-1">
+          <Link href="/teacher/classes" className="text-muted-foreground hover:text-foreground p-1">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
@@ -93,15 +93,15 @@ export default function ClassDetailsPage() {
                 </Badge>
               )}
               {classData.academicYear && (
-                <span className="text-xs text-slate-400 font-mono">
+                <span className="text-xs text-muted-foreground font-mono">
                   {classData.academicYear}
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">
               {classData.name}
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {classData.subject || "No subject specified"} • {classData.members?.length || 0} enrolled students
             </p>
           </div>
@@ -109,7 +109,7 @@ export default function ClassDetailsPage() {
 
         <Button
           onClick={() => setIsAddOpen(true)}
-          className="font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white"
+          className="font-semibold gap-1.5"
         >
           <UserPlus className="w-4 h-4" />
           Enroll Student
@@ -117,23 +117,23 @@ export default function ClassDetailsPage() {
       </div>
 
       {/* Roster Table Card */}
-      <Card className="border-slate-800 bg-slate-900/80 shadow-xl overflow-hidden">
-        <CardHeader className="p-5 border-b border-slate-800/80 bg-slate-950/40">
-          <CardTitle className="text-base text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-400" />
+      <Card className="shadow-lg overflow-hidden">
+        <CardHeader className="p-5 border-b border-border bg-muted/40">
+          <CardTitle className="text-base text-card-foreground flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
             Class Roster
           </CardTitle>
-          <CardDescription className="text-xs text-slate-400">
+          <CardDescription className="text-xs text-muted-foreground">
             List of registered students associated with this class section
           </CardDescription>
         </CardHeader>
 
         <CardContent className="p-0">
           {!classData.members || classData.members.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 space-y-2">
-              <Users className="w-10 h-10 text-slate-600 mx-auto opacity-50" />
-              <p className="text-sm font-semibold text-white">No Students Enrolled Yet</p>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <div className="py-16 text-center text-muted-foreground space-y-2">
+              <Users className="w-10 h-10 text-muted-foreground/60 mx-auto opacity-50" />
+              <p className="text-sm font-semibold text-foreground">No Students Enrolled Yet</p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Add registered students by their email address and student number to build the class roster.
               </p>
             </div>
@@ -141,7 +141,7 @@ export default function ClassDetailsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 uppercase font-mono text-[10px]">
+                  <tr className="border-b border-border bg-muted/50 text-muted-foreground uppercase font-mono text-[10px]">
                     <th className="py-3 px-4">#</th>
                     <th className="py-3 px-4">Student Name</th>
                     <th className="py-3 px-4">Student Number</th>
@@ -149,19 +149,19 @@ export default function ClassDetailsPage() {
                     <th className="py-3 px-4">Enrolled Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-border">
                   {classData.members.map((m: any, idx: number) => (
-                    <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-500">{idx + 1}</td>
-                      <td className="py-3 px-4 font-bold text-white">{m.name}</td>
-                      <td className="py-3 px-4 font-mono text-indigo-300">
+                    <tr key={m.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-4 font-mono text-muted-foreground">{idx + 1}</td>
+                      <td className="py-3 px-4 font-bold text-foreground">{m.name}</td>
+                      <td className="py-3 px-4 font-mono text-primary">
                         {m.studentNumber || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-300 flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-slate-500" />
+                      <td className="py-3 px-4 text-foreground/80 flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-muted-foreground" />
                         {m.email}
                       </td>
-                      <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                      <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
                         {new Date(m.joinedAt).toLocaleDateString()}
                       </td>
                     </tr>
@@ -175,25 +175,25 @@ export default function ClassDetailsPage() {
 
       {/* Enroll Student Modal */}
       {isAddOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
           <form
             onSubmit={handleAddStudent}
-            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fade-in"
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-card-foreground"
           >
-            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-800">
-              <UserPlus className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Enroll Student into Class</h3>
+            <div className="flex items-center gap-2.5 pb-2 border-b border-border">
+              <UserPlus className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-card-foreground">Enroll Student into Class</h3>
             </div>
 
             {addError && (
-              <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs">
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">
                 {addError}
               </div>
             )}
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">
+                <label className="font-semibold text-foreground block mb-1">
                   Student Account Email *
                 </label>
                 <Input
@@ -201,16 +201,16 @@ export default function ClassDetailsPage() {
                   placeholder="student@school.edu"
                   value={studentEmail}
                   onChange={(e) => setStudentEmail(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-xs"
+                  className="text-xs"
                   required
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-muted-foreground mt-1">
                   The student must have an existing registered student account.
                 </p>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-300 block mb-1">
+                <label className="font-semibold text-foreground block mb-1">
                   Student Number / ID (Optional)
                 </label>
                 <Input
@@ -218,12 +218,12 @@ export default function ClassDetailsPage() {
                   placeholder="e.g. 2024-00123"
                   value={studentNumber}
                   onChange={(e) => setStudentNumber(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-xs"
+                  className="text-xs"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
@@ -232,7 +232,7 @@ export default function ClassDetailsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="bg-indigo-600 text-white font-semibold">
+              <Button type="submit" size="sm" className="font-semibold">
                 Enroll Student
               </Button>
             </div>

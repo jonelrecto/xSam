@@ -130,18 +130,18 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
 
   return (
     <>
-      <Card className="border-slate-800 bg-slate-900/90 shadow-2xl backdrop-blur-xl max-w-3xl mx-auto">
+      <Card className="border-border bg-card shadow-sm backdrop-blur-xl max-w-3xl mx-auto">
         <CardHeader>
-          <CardTitle className="text-xl text-white">Step 1: Exam Configuration</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-xl text-card-foreground">Step 1: Exam Configuration</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
             Set up the basic exam parameters, subject category, time limits, and anti-cheating controls.
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           {serverError && (
-            <div className="mb-6 p-3 rounded-lg bg-red-950/60 border border-red-500/30 text-red-300 text-xs flex items-start gap-2.5 animate-fade-in">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="mb-6 p-3 rounded-lg bg-destructive/15 border border-destructive/30 text-destructive text-xs flex items-start gap-2.5 animate-fade-in font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{serverError}</span>
             </div>
           )}
@@ -171,7 +171,7 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                     <button
                       type="button"
                       onClick={() => setIsNewCategoryModalOpen(true)}
-                      className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      className="text-[11px] font-semibold text-primary hover:text-primary/80 flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" />
                       New Category
@@ -181,7 +181,7 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                     <select
                       id="categoryId"
                       {...register("categoryId")}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
                     >
                       <option value="">No Category (General)</option>
                       {categories.map((c) => (
@@ -197,8 +197,8 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                         className="w-2.5 h-2.5 rounded-full inline-block"
                         style={{ backgroundColor: currentCategory.color || "#6366f1" }}
                       />
-                      <span className="text-[11px] text-slate-400">
-                        Selected: <strong className="text-white">{currentCategory.name}</strong>
+                      <span className="text-[11px] text-muted-foreground">
+                        Selected: <strong className="text-foreground">{currentCategory.name}</strong>
                       </span>
                     </div>
                   )}
@@ -214,7 +214,7 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                     error={errors.passingPercent?.message}
                     {...register("passingPercent", { valueAsNumber: true })}
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-muted-foreground mt-1">
                     Standard passing percentage for student results (default 60%).
                   </p>
                 </div>
@@ -226,11 +226,11 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                   id="description"
                   rows={3}
                   placeholder="Instructions for students (e.g. You have 60 minutes. Read each item carefully.)"
-                  className="w-full rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent placeholder:text-slate-500"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent placeholder:text-muted-foreground"
                   {...register("description")}
                 />
                 {errors.description?.message && (
-                  <p className="mt-1 text-xs text-red-400 font-medium">
+                  <p className="mt-1 text-xs text-destructive font-medium">
                     {errors.description.message}
                   </p>
                 )}
@@ -238,8 +238,8 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
             </div>
 
             {/* Time & Schedule */}
-            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+            <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
                 Duration & Schedule Window
               </h4>
@@ -281,101 +281,101 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400">
-                <span className="text-amber-400 font-semibold">Note:</span> Setting a closing date and time is required. Students will not be able to start or submit the exam once closed.
+              <p className="text-[11px] text-muted-foreground">
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">Note:</span> Setting a closing date and time is required. Students will not be able to start or submit the exam once closed.
               </p>
             </div>
 
             {/* Anti-Cheating & Integrity Options */}
-            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+            <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                 <Shield className="w-4 h-4" />
                 Integrity & Exam Experience Settings
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-800/60 bg-slate-900/40 cursor-pointer hover:bg-slate-900/80 transition-colors">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted/40 transition-colors">
                   <input
                     type="checkbox"
                     checked={shuffleQuestions}
                     onChange={(e) => setValue("shuffleQuestions", e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded bg-slate-800 border-slate-700"
+                    className="w-4 h-4 text-primary rounded bg-background border-input"
                   />
                   <div>
-                    <span className="text-xs font-bold text-white block">
+                    <span className="text-xs font-bold text-foreground block">
                       Shuffle Questions
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-muted-foreground">
                       Randomize question order deterministically per student.
                     </span>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-800/60 bg-slate-900/40 cursor-pointer hover:bg-slate-900/80 transition-colors">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted/40 transition-colors">
                   <input
                     type="checkbox"
                     checked={shuffleOptions}
                     onChange={(e) => setValue("shuffleOptions", e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded bg-slate-800 border-slate-700"
+                    className="w-4 h-4 text-primary rounded bg-background border-input"
                   />
                   <div>
-                    <span className="text-xs font-bold text-white block">
+                    <span className="text-xs font-bold text-foreground block">
                       Shuffle Options
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-muted-foreground">
                       Randomize multiple choice options (preserves position-locked keys).
                     </span>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-800/60 bg-slate-900/40 cursor-pointer hover:bg-slate-900/80 transition-colors">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted/40 transition-colors">
                   <input
                     type="checkbox"
                     checked={enforceFullscreen}
                     onChange={(e) => setValue("enforceFullscreen", e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded bg-slate-800 border-slate-700"
+                    className="w-4 h-4 text-primary rounded bg-background border-input"
                   />
                   <div>
-                    <span className="text-xs font-bold text-white block">
+                    <span className="text-xs font-bold text-foreground block">
                       Enforce Fullscreen Gate
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-muted-foreground">
                       10s countdown upon fullscreen exit before obscuring test runner.
                     </span>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-800/60 bg-slate-900/40 cursor-pointer hover:bg-slate-900/80 transition-colors">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted/40 transition-colors">
                   <input
                     type="checkbox"
                     checked={requireCamera}
                     onChange={(e) => setValue("requireCamera", e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded bg-slate-800 border-slate-700"
+                    className="w-4 h-4 text-primary rounded bg-background border-input"
                   />
                   <div>
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Camera className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-primary" />
                       Require Webcam Proctoring Check
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-muted-foreground">
                       Requires student camera permission and performs pre-flight live webcam validation.
                     </span>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-800/60 bg-slate-900/40 cursor-pointer hover:bg-slate-900/80 transition-colors sm:col-span-2">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted/40 transition-colors sm:col-span-2">
                   <input
                     type="checkbox"
                     checked={showScoreOnSubmit}
                     onChange={(e) => setValue("showScoreOnSubmit", e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded bg-slate-800 border-slate-700"
+                    className="w-4 h-4 text-primary rounded bg-background border-input"
                   />
                   <div>
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       Show Score On Submit
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-muted-foreground">
                       Displays auto-graded score immediately upon exam completion.
                     </span>
                   </div>
@@ -387,7 +387,7 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
               <Button
                 type="submit"
                 size="lg"
-                className="font-semibold gap-2 shadow-lg shadow-indigo-600/20"
+                className="font-semibold gap-2 shadow-sm"
                 isLoading={isLoading}
               >
                 Continue to Questions Studio
@@ -400,14 +400,14 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
 
       {/* Quick New Category Modal */}
       {isNewCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
           <form
             onSubmit={handleCreateCategory}
-            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
+            className="bg-card border border-border rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-              <Layers className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Create Subject Category</h3>
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <Layers className="w-5 h-5 text-primary" />
+              <h3 className="text-base font-bold text-card-foreground">Create Subject Category</h3>
             </div>
 
             <div className="space-y-3">
@@ -421,7 +421,7 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                   placeholder="e.g. Mathematics, Operating Systems"
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-xs"
+                  className="bg-background border-input text-xs"
                   required
                   autoFocus
                 />
@@ -437,12 +437,12 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
                     onChange={(e) => setNewCatColor(e.target.value)}
                     className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
                   />
-                  <span className="text-xs font-mono text-slate-300">{newCatColor}</span>
+                  <span className="text-xs font-mono text-foreground">{newCatColor}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
@@ -455,7 +455,7 @@ export function ExamDetailsForm({ initialCategories = [] }: ExamDetailsFormProps
               <Button
                 type="submit"
                 size="sm"
-                className="bg-indigo-600 text-white font-semibold"
+                className="font-semibold"
                 isLoading={isCreatingCat}
               >
                 Save Category

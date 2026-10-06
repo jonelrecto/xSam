@@ -130,6 +130,20 @@ describe("Phase 2: Zustand Draft Store Mechanics", () => {
     expect(state.questions[1].confirmed).toBe(false); // no answer -> unconfirmed
     expect(state.questions[2].confirmed).toBe(false); // ai_inferred -> stays unconfirmed
   });
+
+  it("should update question DB IDs via updateIds without incrementing revision", () => {
+    const store = useDraftStore.getState();
+    store.add("multiple_choice");
+    const qTempId = useDraftStore.getState().questions[0].tempId;
+    const revBefore = useDraftStore.getState().revision;
+
+    // Autosave assigns DB ID
+    store.updateIds([{ clientTempId: qTempId, dbId: "db-uuid-123" }]);
+    const state = useDraftStore.getState();
+
+    expect(state.questions[0].id).toBe("db-uuid-123");
+    expect(state.revision).toBe(revBefore); // Revision should NOT be bumped!
+  });
 });
 
 describe("Phase 2: Strict Publish Gate Validation", () => {
@@ -237,15 +251,42 @@ describe("Phase 2: Exam Details Schema Validation", () => {
     expect(res.success).toBe(false);
   });
 
-  it("should reject schedule window that is shorter than exam duration", () => {
+  it("should accept valid exam details with all 6 integrity policies", () => {
     const res = examDetailsSchema.safeParse({
-      title: "Sample Exam",
-      durationMinutes: 60, // 60 minutes
+      title: "Comprehensive Security Exam",
+      durationMinutes: 45,
+      passingPercent: 75,
       scheduledStart: "2026-10-01T10:00:00.000Z",
-      scheduledEnd: "2026-10-01T10:30:00.000Z", // only 30 minutes window
+      scheduledEnd: "2026-10-01T12:00:00.000Z",
       shuffleQuestions: true,
       shuffleOptions: true,
+      requireCamera: true,
+      showScoreOnSubmit: true,
+      enforceFullscreen: true,
+      restrictInput: true,
     });
-    expect(res.success).toBe(false);
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.restrictInput).toBe(true);
+      expect(res.data.requireCamera).toBe(true);
+      expect(res.data.enforceFullscreen).toBe(true);
+    }
+  });
+
+  it("should apply default values for restrictInput, requireCamera, and fullscreen", () => {
+    const res = examDetailsSchema.safeParse({
+      title: "Default Options Exam",
+      durationMinutes: 30,
+      scheduledEnd: "2026-10-01T15:00:00.000Z",
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.restrictInput).toBe(false);
+      expect(res.data.requireCamera).toBe(false);
+      expect(res.data.enforceFullscreen).toBe(true);
+      expect(res.data.shuffleQuestions).toBe(true);
+      expect(res.data.shuffleOptions).toBe(true);
+      expect(res.data.showScoreOnSubmit).toBe(false);
+    }
   });
 });

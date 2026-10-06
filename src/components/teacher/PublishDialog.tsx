@@ -1,29 +1,22 @@
-"use client";
-
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDraftStore } from "@/hooks/use-draft-store";
-import { publishExam } from "@/app/actions/exam";
-import { publishableQuestionSchema } from "@/lib/schemas/exam";
+import { teacherApi } from "@/lib/api";
+import { publishableQuestionSchema } from "@xsam/shared";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Send,
   CheckCircle2,
-  AlertTriangle,
   XCircle,
-  KeyRound,
   ArrowRight,
   ShieldCheck,
-  Calendar,
-  Clock,
 } from "lucide-react";
 
 interface PublishDialogProps {
   exam: any;
   isOpen: boolean;
   onClose: () => void;
-  onFlush: () => Promise<boolean>;
+  onFlush: () => Promise<boolean | { ok: boolean; error?: string }>;
 }
 
 export function PublishDialog({
@@ -41,7 +34,6 @@ export function PublishDialog({
     issues?: string[];
   } | null>(null);
 
-  // Compute live pre-publish validation checklist
   const checklist = useMemo(() => {
     const issues: { qIndex?: number; message: string }[] = [];
 
@@ -77,17 +69,20 @@ export function PublishDialog({
     setPublishResult(null);
 
     try {
-      const flushed = await onFlush();
+      const flushResult = await onFlush();
+      const flushed = typeof flushResult === "boolean" ? flushResult : flushResult?.ok;
+      const flushError = typeof flushResult === "object" ? flushResult?.error : undefined;
+
       if (!flushed) {
         setPublishResult({
           success: false,
-          issues: ["Unable to auto-save latest edits before publishing. Please try again."],
+          issues: [flushError || "Unable to auto-save latest edits before publishing. Please try again."],
         });
         setIsPublishing(false);
         return;
       }
 
-      const res = await publishExam(exam.id);
+      const res = await teacherApi.publishExam(exam.id);
       if (res.ok) {
         setPublishResult({
           success: true,
@@ -96,13 +91,17 @@ export function PublishDialog({
       } else {
         setPublishResult({
           success: false,
-          issues: (res.issues as string[]) || ["Failed to publish exam."],
+          issues: ["Failed to publish exam."],
         });
       }
     } catch (err: any) {
+      const msg = err?.data?.error || err?.message || "An unexpected error occurred during publishing.";
+      const issues = err?.data?.issues
+        ? err.data.issues.map((it: any) => it.message || String(it))
+        : [msg];
       setPublishResult({
         success: false,
-        issues: [err?.message || "An unexpected error occurred during publishing."],
+        issues,
       });
     } finally {
       setIsPublishing(false);
@@ -110,27 +109,27 @@ export function PublishDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-lg w-full space-y-5 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
+      <div className="bg-card border border-border p-6 rounded-2xl max-w-lg w-full space-y-5 shadow-2xl text-card-foreground">
         {publishResult?.success ? (
           /* Success Screen with Access Code */
           <div className="text-center space-y-5 py-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
               <ShieldCheck className="w-7 h-7" />
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-white">Exam Published Successfully!</h3>
-              <p className="text-xs text-slate-400 mt-1">
+              <h3 className="text-xl font-bold text-card-foreground">Exam Published Successfully!</h3>
+              <p className="text-xs text-muted-foreground mt-1">
                 The answer key is now securely locked. Students can join using the access code below:
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-indigo-500/40 text-center space-y-1">
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block">
+            <div className="p-4 rounded-xl bg-background border border-primary/40 text-center space-y-1 shadow-sm">
+              <span className="text-[10px] font-bold text-primary uppercase tracking-widest block">
                 STUDENT ACCESS CODE
               </span>
-              <span className="text-3xl font-black font-mono tracking-widest text-indigo-300">
+              <span className="text-3xl font-black font-mono tracking-widest text-primary">
                 {publishResult.accessCode}
               </span>
             </div>
@@ -140,7 +139,6 @@ export function PublishDialog({
               onClick={() => {
                 onClose();
                 router.push("/teacher");
-                router.refresh();
               }}
             >
               Return to Teacher Dashboard
@@ -152,57 +150,57 @@ export function PublishDialog({
           <>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <Send className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-lg font-bold text-white">Publish Examination</h3>
+                <Send className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-bold text-card-foreground">Publish Examination</h3>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 Review the pre-publish checklist. Publishing locks questions and issues an access code.
               </p>
             </div>
 
             {/* Summary Strip */}
-            <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-center text-xs">
+            <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-muted/50 border border-border text-center text-xs">
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase">Questions</span>
-                <span className="font-bold text-white text-sm">{questions.length}</span>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Questions</span>
+                <span className="font-bold text-foreground text-sm">{questions.length}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase">Total Points</span>
-                <span className="font-bold text-white text-sm">{checklist.totalPoints}</span>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Total Points</span>
+                <span className="font-bold text-foreground text-sm">{checklist.totalPoints}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px] uppercase">Duration</span>
-                <span className="font-bold text-white text-sm">{exam.durationMinutes}m</span>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Duration</span>
+                <span className="font-bold text-foreground text-sm">{exam.durationMinutes}m</span>
               </div>
             </div>
 
             {/* Checklist Results */}
             <div className="space-y-2">
-              <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 System Verification Checklist:
               </h5>
 
               {checklist.isValid ? (
-                <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>
                     All {questions.length} questions have valid, confirmed answer keys and meet publishing criteria.
                   </span>
                 </div>
               ) : (
-                <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-xs space-y-2 max-h-48 overflow-y-auto">
-                  <div className="flex items-center gap-2 font-bold text-red-300">
-                    <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs space-y-2 max-h-48 overflow-y-auto">
+                  <div className="flex items-center gap-2 font-bold">
+                    <XCircle className="w-4 h-4 shrink-0" />
                     <span>Please resolve the following before publishing:</span>
                   </div>
-                  <ul className="list-disc list-inside space-y-1 text-[11px] text-red-200/90 pl-1">
+                  <ul className="list-disc list-inside space-y-1 text-[11px] pl-1 opacity-90">
                     {checklist.issues.map((issue, idx) => (
                       <li key={idx}>
                         {issue.qIndex ? (
                           <a
                             href={`#question-card-${questions[issue.qIndex - 1]?.tempId}`}
                             onClick={onClose}
-                            className="underline hover:text-white"
+                            className="underline hover:opacity-100"
                           >
                             {issue.message}
                           </a>
@@ -218,7 +216,7 @@ export function PublishDialog({
 
             {/* Server Error Issues if any */}
             {publishResult?.issues && (
-              <div className="p-3 rounded-lg bg-red-950/60 border border-red-500/30 text-red-300 text-xs space-y-1">
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs space-y-1">
                 <span className="font-bold">Server validation rejected publish:</span>
                 <ul className="list-disc list-inside text-[11px]">
                   {publishResult.issues.map((msg, i) => (
@@ -228,7 +226,7 @@ export function PublishDialog({
               </div>
             )}
 
-            <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-border">
               <Button variant="outline" size="sm" onClick={onClose} disabled={isPublishing}>
                 Cancel
               </Button>
@@ -237,7 +235,7 @@ export function PublishDialog({
                 disabled={!checklist.isValid || isPublishing}
                 isLoading={isPublishing}
                 onClick={handlePublish}
-                className="font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="font-semibold"
               >
                 Confirm & Publish
               </Button>
