@@ -2,3 +2,5 @@ node_modules
 .next
 dist
 .env
+.testdriver
+test-results/
